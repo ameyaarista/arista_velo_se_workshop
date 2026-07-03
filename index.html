@@ -916,8 +916,10 @@ const TEMPLATES={
     return {devices,links,subnets,clouds:[],mgmt:mgmtDefault()};
   }},
   fullmesh:{ label:"Full Mesh", build(){
+    const grid=[[280,760],[280,340],[860,760],[860,340]]; // 2×2: Hub1 BL, Hub2 TL, Hub3 BR, Hub4 TR
     const devices=[],links=[],subnets=[], n=4;
-    for(let i=1;i<=n;i++){ const id="m"+i; devices.push({id,kind:"hub",label:"Hub"+i}); subnets.push({id:"sm"+i,anchor:id,cidr:"10.0."+i+".0/24"}); }
+    for(let i=1;i<=n;i++){ const id="m"+i, [x,y]=grid[i-1];
+      devices.push({id,kind:"hub",label:"Hub"+i,x,y}); subnets.push({id:"sm"+i,anchor:id,cidr:"10.0."+i+".0/24"}); }
     let k=0; for(let i=1;i<=n;i++) for(let j=i+1;j<=n;j++) links.push({id:"l"+(k++),from:"m"+i,to:"m"+j,transport:"sdwan"});
     return {devices,links,subnets,clouds:[],mgmt:mgmtDefault()};
   }},
