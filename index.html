@@ -187,12 +187,6 @@
 
   <aside class="panel right" id="panel-right">
     <div class="section">
-      <h2>Edit elements</h2>
-      <div id="elements"></div>
-      <div class="hint">✎ edit fields · ✕ delete · click a colored tag to change type. Deleting a device also removes its links, subnets and clouds.</div>
-    </div>
-
-    <div class="section">
       <h2>Topology checks</h2>
       <div id="checks"></div>
     </div>
@@ -603,6 +597,7 @@ function row(label,tag,tagColor,tagClick,edit,del){
     +`<span><span class="ed" onclick="${edit}">✎</span><span class="x" onclick="${del}">✕</span></span></li>`;
 }
 function renderElements(){
+  const elBox=document.getElementById("elements"); if(!elBox) return;
   let h="";
   const hs=model.devices.filter(d=>d.kind==="hub"), sp=model.devices.filter(d=>d.kind==="spoke"), cl=model.devices.filter(d=>d.kind==="cluster");
   const kindColor=k=>k==="hub"?"#57bf5b":k==="cluster"?"#2f855a":"#2b9fd8";
