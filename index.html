@@ -73,6 +73,7 @@
   .pal-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 3px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:10px;color:#374151;font-weight:500;line-height:1.1;text-align:center}
   .pal-btn:hover{background:#f3f4f6;border-color:#c7ccd4}
   .pal-btn svg{display:block;height:28px}
+  .pal-grp{grid-column:1/-1;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#9ca3af;margin:6px 0 0}
   .tag{font-size:10px;padding:1px 6px;border-radius:10px;color:#fff}
   svg{display:block}
 </style>
@@ -194,8 +195,10 @@ function referenceModel(){
 let model = referenceModel();
 const dev = id => model.devices.find(d=>d.id===id);
 const isCore = k => k==="hub" || k==="cluster";       // "core" nodes sit in the top tier
+const isSSE = k => k==="zscaler" || k==="prisma" || k==="netskope";   // SASE/SSE services
+const LEAF = new Set(["spoke","firewall","vwan","zscaler","prisma","netskope"]);
 const hubs = () => model.devices.filter(d=>isCore(d.kind));
-const spokes = () => model.devices.filter(d=>d.kind==="spoke"||d.kind==="firewall"||d.kind==="vwan");   // leaf nodes (bottom tier)
+const spokes = () => model.devices.filter(d=>LEAF.has(d.kind));   // leaf nodes (bottom tier)
 function primaryHub(sp){                       // core node this spoke first connects to
   for(const l of model.links){
     if(l.from===sp.id && isCore(dev(l.to)?.kind)) return l.to;
@@ -370,6 +373,31 @@ function vwanNode(p){
     +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
     +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
 }
+// SASE / SSE brand marks (simplified)
+function zscalerIcon(cx,cy,r){ const f=n=>n.toFixed(1);
+  let g=`<ellipse cx="${cx}" cy="${f(cy+0.05*r)}" rx="${f(r)}" ry="${f(r*0.78)}" fill="#0d6efd"/>`;
+  g+=`<path d="M ${f(cx-0.55*r)} ${f(cy+0.5*r)} Q ${f(cx-0.1*r)} ${f(cy-0.1*r)} ${f(cx+0.7*r)} ${f(cy-0.2*r)} Q ${f(cx+0.15*r)} ${f(cy+0.15*r)} ${f(cx-0.15*r)} ${f(cy+0.55*r)} Z" fill="#fff"/>`;
+  g+=`<path d="M ${f(cx+0.2*r)} ${f(cy-0.5*r)} L ${f(cx+0.7*r)} ${f(cy-0.55*r)} L ${f(cx+0.28*r)} ${f(cy-0.32*r)} Z" fill="#fff"/>`;
+  return g; }
+function prismaIcon(cx,cy,r){ const f=n=>n.toFixed(1);
+  let g=`<path d="M ${f(cx-0.05*r)} ${f(cy-0.72*r)} L ${f(cx-0.05*r)} ${f(cy+0.25*r)} L ${f(cx-0.78*r)} ${f(cy+0.25*r)} Z" fill="#00c2e8"/>`;
+  g+=`<rect x="${f(cx-0.05*r)}" y="${f(cy-0.72*r)}" width="${f(0.2*r)}" height="${f(1.45*r)}" fill="#111827"/>`;
+  return g; }
+function netskopeIcon(cx,cy,r){ const f=n=>n.toFixed(1), gy="#5b5b66";
+  let g=`<line x1="${f(cx-0.42*r)}" y1="${f(cy+0.18*r)}" x2="${f(cx+0.08*r)}" y2="${f(cy-0.18*r)}" stroke="${gy}" stroke-width="${f(0.3*r)}" stroke-linecap="round"/>`;
+  g+=`<circle cx="${f(cx-0.45*r)}" cy="${f(cy+0.2*r)}" r="${f(0.28*r)}" fill="${gy}"/>`;
+  g+=`<circle cx="${f(cx+0.08*r)}" cy="${f(cy-0.18*r)}" r="${f(0.24*r)}" fill="${gy}"/>`;
+  g+=`<circle cx="${f(cx-0.1*r)}" cy="${f(cy+0.5*r)}" r="${f(0.2*r)}" fill="#ff8a00"/>`;
+  g+=`<circle cx="${f(cx+0.42*r)}" cy="${f(cy-0.46*r)}" r="${f(0.2*r)}" fill="none" stroke="#1aa8e0" stroke-width="${f(0.13*r)}"/>`;
+  return g; }
+const SSEICON={zscaler:zscalerIcon,prisma:prismaIcon,netskope:netskopeIcon};
+function sseNode(p){
+  const r=30, ly=p.y+r+20, lbl=esc(p.node.label), w=lbl.length*7.6+12;
+  return `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="#fff" stroke="#d0d5dd" stroke-width="1.5"/>`
+    +(SSEICON[p.kind]||zscalerIcon)(p.x,p.y,r*0.62)
+    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
+    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+}
 function clusterNode(p){
   const r=24, dx=32, padX=dx+r+12, padY=r+14;
   const lbl=esc(p.node.label), w=lbl.length*7.6+12, ly=p.y+padY+16;
@@ -383,6 +411,7 @@ function deviceNode(p){
   if(p.kind==="cluster") return clusterNode(p);
   if(p.kind==="firewall") return firewallNode(p);
   if(p.kind==="vwan") return vwanNode(p);
+  if(isSSE(p.kind)) return sseNode(p);
   const isHub=p.kind==="hub", fill=isHub?"var(--hub)":"var(--spoke)", r=isHub?38:32;
   const ly=isHub?p.y-r-14:p.y+r+20;              // hub label above, spoke label below — clear of links
   const lbl=esc(p.node.label), w=lbl.length*7.6+12;
@@ -689,8 +718,9 @@ function renderSuggestions(){
   const spokeTargets=cand.filter(d=>d.kind==="spoke");
   const fwTargets=cand.filter(d=>d.kind==="firewall");
   const vwanTargets=cand.filter(d=>d.kind==="vwan");
+  const sseTargets=cand.filter(d=>isSSE(d.kind));
   const gwTargets=[]; model.mgmt.planes.forEach(pl=>pl.services.forEach(sv=>{ if(sv.type==="vcg"){ const gid="svc:"+sv.id; if(!connected.has(gid)) gwTargets.push({id:gid,label:sv.label}); } }));
-  const kc=k=>k==="hub"?"#57bf5b":k==="cluster"?"#2f855a":k==="firewall"?"#f4685f":k==="vwan"?"#38b6f1":"#2b9fd8";
+  const kc=k=>k==="hub"?"#57bf5b":k==="cluster"?"#2f855a":k==="firewall"?"#f4685f":k==="vwan"?"#38b6f1":k==="zscaler"?"#0d6efd":k==="prisma"?"#00c2e8":k==="netskope"?"#ff8a00":"#2b9fd8";
   const sug=(tid,label,tag,color)=>`<li><span>${esc(label)} <span class="tag" style="background:${color}">${esc(tag)}</span></span>`
     +`<span class="ed" style="color:#159957;font-weight:800;font-size:15px" title="Add connection" onclick="connectSuggested('${sd.id}','${tid}')">＋</span></li>`;
   let h=`<div class="hint" style="margin-top:0">From <b>${esc(sd.label)}</b> — click ＋ to add.</div>`;
@@ -698,6 +728,7 @@ function renderSuggestions(){
   if(spokeTargets.length) h+=`<div class="grp">Spokes</div><ul class="links">${spokeTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(fwTargets.length) h+=`<div class="grp">Firewalls</div><ul class="links">${fwTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(vwanTargets.length) h+=`<div class="grp">Virtual WAN</div><ul class="links">${vwanTargets.map(d=>sug(d.id,d.label,"vwan",kc(d.kind))).join("")}</ul>`;
+  if(sseTargets.length) h+=`<div class="grp">SASE / SSE</div><ul class="links">${sseTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(gwTargets.length) h+=`<div class="grp">Gateways</div><ul class="links">${gwTargets.map(g=>sug(g.id,g.label,"VCG","#2b9fd8")).join("")}</ul>`;
   if(!cand.length && !gwTargets.length) h+=`<div class="muted">No further connections available.</div>`;
   // always offer a new subnet on this device
@@ -706,9 +737,9 @@ function renderSuggestions(){
   box.innerHTML=h;
 }
 function canConnectKinds(a,b){                            // allowed device↔device pairs (gateways handled separately)
-  const fwOK=k=>k==="spoke"||k==="hub"||k==="cluster";   // firewall connects to spoke/hub/cluster
-  if(a==="firewall") return fwOK(b);
-  if(b==="firewall") return fwOK(a);
+  const fwOK=k=>k==="spoke"||k==="hub"||k==="cluster";   // firewall / SASE connect to spoke/hub/cluster
+  if(a==="firewall"||isSSE(a)) return fwOK(b);
+  if(b==="firewall"||isSSE(b)) return fwOK(a);
   if(isCore(a)&&isCore(b)) return true;                  // core ↔ core
   if((a==="spoke"&&isCore(b))||(b==="spoke"&&isCore(a))) return true;   // spoke ↔ core
   return false;
@@ -731,7 +762,7 @@ function renderChecks(){ const el=document.getElementById("checks"); if(!el) ret
 function uid(p){ return p+Math.random().toString(36).slice(2,7); }
 function addDevice(kind,cloud){
   pushUndo();
-  const base=kind==="hub"?"Hub":kind==="cluster"?"Cluster":kind==="firewall"?"FW":kind==="vwan"?"vWAN":"Spoke";
+  const base=({hub:"Hub",cluster:"Cluster",firewall:"FW",vwan:"vWAN",zscaler:"Zscaler",prisma:"Prisma",netskope:"Netskope"})[kind]||"Spoke";
   const name=base+(model.devices.filter(d=>d.kind===kind).length+1);
   model.devices.push({id:uid("d"),kind,label:name,cloud:cloud||undefined});
   render();
@@ -753,19 +784,29 @@ function buildPalette(){
   const clusterIc=paletteSvg("0 0 46 28",
     `<rect x="1" y="4" width="44" height="20" rx="5" fill="none" stroke="#9aa0a6" stroke-width="1.2" stroke-dasharray="3 2"/>`
     +edgeIcon(13,14,8,'var(--hub)')+edgeIcon(33,14,8,'var(--hub)'),40);
-  const items=[
-    ["Spoke","addDevice('spoke')",paletteSvg("0 0 28 28",edgeIcon(14,14,11,'var(--spoke)'))],
-    ["Hub","addDevice('hub')",paletteSvg("0 0 28 28",edgeIcon(14,14,11,'var(--hub)'))],
-    ["AWS Hub","addDevice('hub','aws')",cloudHubIcon('aws')],
-    ["Azure Hub","addDevice('hub','azure')",cloudHubIcon('azure')],
-    ["GCP Hub","addDevice('hub','gcp')",cloudHubIcon('gcp')],
-    ["Cluster","addDevice('cluster')",clusterIc],
-    ["Firewall","addDevice('firewall')",paletteSvg("0 0 28 28",firewallIcon(14,14,11,'var(--firewall)'))],
-    ["Virtual WAN","addDevice('vwan')",paletteSvg("0 0 28 28",vwanIcon(14,14,11))],
-    ["VCO","addMgmt('vco')",paletteSvg("0 0 28 28",vcoIcon(14,14,11))],
-    ["VCG","addMgmt('vcg')",paletteSvg("0 0 28 28",vcgIcon(14,14,11))],
+  const groups=[
+    {items:[
+      ["Spoke","addDevice('spoke')",paletteSvg("0 0 28 28",edgeIcon(14,14,11,'var(--spoke)'))],
+      ["Hub","addDevice('hub')",paletteSvg("0 0 28 28",edgeIcon(14,14,11,'var(--hub)'))],
+      ["AWS Hub","addDevice('hub','aws')",cloudHubIcon('aws')],
+      ["Azure Hub","addDevice('hub','azure')",cloudHubIcon('azure')],
+      ["GCP Hub","addDevice('hub','gcp')",cloudHubIcon('gcp')],
+      ["Cluster","addDevice('cluster')",clusterIc],
+      ["Firewall","addDevice('firewall')",paletteSvg("0 0 28 28",firewallIcon(14,14,11,'var(--firewall)'))],
+      ["Virtual WAN","addDevice('vwan')",paletteSvg("0 0 28 28",vwanIcon(14,14,11))],
+      ["VCO","addMgmt('vco')",paletteSvg("0 0 28 28",vcoIcon(14,14,11))],
+      ["VCG","addMgmt('vcg')",paletteSvg("0 0 28 28",vcgIcon(14,14,11))],
+    ]},
+    {label:"SASE / SSE", items:[
+      ["Zscaler","addDevice('zscaler')",paletteSvg("0 0 28 28",zscalerIcon(14,14,10))],
+      ["Prisma","addDevice('prisma')",paletteSvg("0 0 28 28",prismaIcon(14,14,10))],
+      ["Netskope","addDevice('netskope')",paletteSvg("0 0 28 28",netskopeIcon(14,14,10))],
+    ]},
   ];
-  el.innerHTML=items.map(([label,act,ic])=>`<button class="pal-btn" onclick="${act}" title="Add ${label}">${ic}<span>${label}</span></button>`).join("");
+  el.innerHTML=groups.map(g=>
+    (g.label?`<div class="pal-grp">${g.label}</div>`:"")
+    +g.items.map(([label,act,ic])=>`<button class="pal-btn" onclick="${act}" title="Add ${label}">${ic}<span>${label}</span></button>`).join("")
+  ).join("");
 }
 function nextSubnetCidr(){ let n=1; const used=new Set(model.subnets.map(s=>s.cidr));
   while(used.has(`10.0.${n}.0/24`)) n++; return `10.0.${n}.0/24`; }
