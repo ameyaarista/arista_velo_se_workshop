@@ -20,9 +20,14 @@
   .panel.right{border-right:none;border-left:1px solid #e5e7eb}
   .gutter{flex:0 0 6px;cursor:col-resize;background:#eef0f2;transition:background .15s}
   .gutter:hover,.gutter.dragging{background:#c7ccd4}
+  .canvas-wrap{flex:1;min-width:0;position:relative;display:flex}
   .canvas{flex:1;overflow:auto;background:#fff;position:relative;display:flex}
   #stage{position:relative;margin:auto}
   .marquee{position:absolute;border:1.5px dashed #2563eb;background:rgba(37,99,235,.08);pointer-events:none;z-index:5}
+  .zoom-bar{position:absolute;right:12px;bottom:12px;z-index:20;display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:4px;box-shadow:0 2px 8px rgba(16,24,40,.12)}
+  .zoom-bar button{width:30px;height:28px;background:#f3f4f6;color:#1f2937;font-size:14px;font-weight:600;padding:0}
+  .zoom-bar button:hover{background:#e5e7eb}
+  .zoom-bar #zoom-pct{font-size:12px;min-width:44px;text-align:center;color:#374151}
   #draw{position:absolute;top:0;left:0;pointer-events:none}
   #pen-tools{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .pentool{width:20px;height:20px;border-radius:5px;border:2px solid #e5e7eb;background:var(--c,#fff);cursor:pointer;padding:0;line-height:1}
@@ -38,6 +43,7 @@
   .btn.add{background:#4b5563}
   .btn.sec{background:#eef2f7;color:#1f2937}
   .btn:hover{filter:brightness(.96)}
+  button:disabled{opacity:.45;cursor:default}
   .toolbar{display:flex;gap:8px;margin-left:auto}
   .toolbar button{width:auto}
   .dropdown{position:relative}
@@ -70,6 +76,16 @@
   </svg>
   <h1>Arista Velocloud - Topology Builder</h1>
   <div class="toolbar">
+    <button class="btn sec" id="btn-undo" onclick="undo()" title="Undo (Ctrl/Cmd+Z)" disabled>↶ Undo</button>
+    <button class="btn sec" id="btn-redo" onclick="redo()" title="Redo (Ctrl/Cmd+Shift+Z)" disabled>↷ Redo</button>
+    <div class="dropdown">
+      <button class="btn sec" onclick="toggleTemplates(event)">Templates ▾</button>
+      <div class="menu" id="tpl-menu" style="min-width:200px">
+        <a href="#" onclick="applyTemplate('hubspoke');return false">Hub &amp; Spoke</a>
+        <a href="#" onclick="applyTemplate('fullmesh');return false">Full Mesh</a>
+        <a href="#" onclick="applyTemplate('multiregion');return false">Multi-Region</a>
+      </div>
+    </div>
     <div class="dropdown">
       <button class="btn sec" onclick="toggleResources(event)">Velocloud resources ▾</button>
       <div class="menu" id="res-menu"></div>
@@ -187,10 +203,19 @@
 
   <div class="gutter" data-target="panel-left" data-side="left" title="Drag to resize"></div>
 
-  <main class="canvas">
-    <div id="stage">
-      <div id="topo-holder"></div>
-      <svg id="draw" xmlns="http://www.w3.org/2000/svg"></svg>
+  <main class="canvas-wrap">
+    <div class="zoom-bar">
+      <button onclick="zoomBy(1/1.2)" title="Zoom out">−</button>
+      <span id="zoom-pct">100%</span>
+      <button onclick="zoomBy(1.2)" title="Zoom in">+</button>
+      <button onclick="fitToScreen()" title="Fit to screen" style="width:auto;padding:0 8px;font-size:12px">Fit</button>
+      <button onclick="zoomReset()" title="Reset zoom" style="width:auto;padding:0 8px;font-size:12px">1:1</button>
+    </div>
+    <div class="canvas">
+      <div id="stage">
+        <div id="topo-holder"></div>
+        <svg id="draw" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
     </div>
   </main>
 
@@ -440,11 +465,13 @@ function render(){
   if(!model.devices.length)
     s+=`<text x="${minX+W/2}" y="${minY+H/2-10}" text-anchor="middle" font-size="16" fill="#9ca3af">Blank canvas</text>`
       +`<text x="${minX+W/2}" y="${minY+H/2+14}" text-anchor="middle" font-size="12" fill="#c0c4cc">Add a hub or spoke from the left panel to begin</text>`;
-  document.getElementById("topo-holder").innerHTML=`<svg id="topo" width="${W}" height="${H}" viewBox="${minX} ${minY} ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+  lastBounds={minX,minY,W,H};
+  const zW=W*zoom, zH=H*zoom;                               // pixel size scaled by zoom (viewBox stays in model units)
+  document.getElementById("topo-holder").innerHTML=`<svg id="topo" width="${zW}" height="${zH}" viewBox="${minX} ${minY} ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
   const dr=document.getElementById("draw");                 // keep drawing layer aligned with topology
-  dr.setAttribute("width",W); dr.setAttribute("height",H); dr.setAttribute("viewBox",`${minX} ${minY} ${W} ${H}`);
+  dr.setAttribute("width",zW); dr.setAttribute("height",zH); dr.setAttribute("viewBox",`${minX} ${minY} ${W} ${H}`);
   bindDrag(document.getElementById("topo"));
-  refreshUI();
+  refreshUI(); updateZoomUI();
 }
 
 /* ================= DRAG / SELECT / MARQUEE ============================= */
@@ -480,6 +507,7 @@ function bindDrag(svg){
   window.addEventListener("pointermove",e=>{
     if(drag){ const svg=document.getElementById("topo"); if(!svg) return;
       const loc=svgPoint(svg,e), dx=loc.x-drag.startLoc.x, dy=loc.y-drag.startLoc.y;
+      if(!drag.moved && (Math.abs(dx)>1||Math.abs(dy)>1)){ drag.moved=true; pushUndo(); } // one history entry per drag
       drag.ids.forEach(id=>{ const en=entity(id), s=drag.start[id]; if(en&&s){ en.x=s.x+dx; en.y=s.y+dy; } });
       scheduleRender(); return; }
     if(marquee) updateMarquee(e);
@@ -564,6 +592,7 @@ function renderElements(){
 }
 function uid(p){ return p+Math.random().toString(36).slice(2,7); }
 function addDevice(kind){
+  pushUndo();
   const base=kind==="hub"?"Hub":"Spoke";
   const name=document.getElementById("d-name").value.trim()||(base+(model.devices.filter(d=>d.kind===kind).length+1));
   const id=uid("d"), cloud=document.getElementById("d-cloud").value||undefined;
@@ -580,12 +609,14 @@ function nextSubnetCidr(){ let n=1; const used=new Set(model.subnets.map(s=>s.ci
 function addLink(){
   const from=document.getElementById("c-from").value, to=document.getElementById("c-to").value;
   if(!from||!to||from===to) return alert("Pick two different devices.");
+  pushUndo();
   model.links.push({id:uid("l"),from,to,transport:document.getElementById("c-tr").value});
   render();
 }
-function delLink(id){ model.links=model.links.filter(l=>l.id!==id); render(); }
+function delLink(id){ pushUndo(); model.links=model.links.filter(l=>l.id!==id); render(); }
 function addCloud(){
   const anchor=document.getElementById("cl-anchor").value; if(!anchor) return alert("Add a device first.");
+  pushUndo();
   model.clouds.push({id:uid("c"),anchor,provider:document.getElementById("cl-prov").value,
     cidr:document.getElementById("cl-cidr").value.trim()||"10.0.0.0/16"});
   render();
@@ -593,19 +624,21 @@ function addCloud(){
 // ---- subnets ----
 function addSubnet(){
   const anchor=document.getElementById("su-anchor").value; if(!anchor) return alert("Add a device first.");
+  pushUndo();
   model.subnets.push({id:uid("s"),anchor,cidr:document.getElementById("su-cidr").value.trim()||nextSubnetCidr()});
   document.getElementById("su-cidr").value=""; render();
 }
 function editSubnet(id){ const su=model.subnets.find(x=>x.id===id); if(!su) return;
-  const cidr=prompt("Subnet CIDR:",su.cidr); if(cidr===null) return;
+  const cidr=prompt("Subnet CIDR:",su.cidr); if(cidr===null) return; pushUndo();
   const anchor=prompt("Attach to device (name):",dev(su.anchor)?.label||"");
   if(anchor!==null){ const m=model.devices.find(d=>d.label.toLowerCase()===anchor.trim().toLowerCase()); if(m) su.anchor=m.id; }
   su.cidr=cidr.trim()||su.cidr; render(); }
-function delSubnet(id){ model.subnets=model.subnets.filter(s=>s.id!==id); render(); }
+function delSubnet(id){ pushUndo(); model.subnets=model.subnets.filter(s=>s.id!==id); render(); }
 // ---- management services (per plane) ----
 const plane=id=>model.mgmt.planes.find(p=>p.id===id);
 function addService(){
   const pl=plane(document.getElementById("m-plane").value); if(!pl) return;
+  pushUndo();
   const type=document.getElementById("m-type").value;
   const label=(document.getElementById("m-label").value||SVCLABEL[type]||"node").trim();
   pl.services.push({id:uid("sv"),label,ip:document.getElementById("m-ip").value.trim(),type});
@@ -613,19 +646,20 @@ function addService(){
 }
 function editService(pid,i){ const sv=plane(pid)?.services[i]; if(!sv) return;
   const l=prompt("Label:",sv.label); if(l===null) return; const ip=prompt("IP:",sv.ip||""); if(ip===null) return;
-  sv.label=l.trim()||sv.label; sv.ip=ip.trim(); render(); }
-function delService(pid,i){ plane(pid)?.services.splice(i,1); render(); }
-function cycleSvc(pid,i){ const sv=plane(pid)?.services[i]; if(!sv) return; const order=["vcg","vco","syslog"];
+  pushUndo(); sv.label=l.trim()||sv.label; sv.ip=ip.trim(); render(); }
+function delService(pid,i){ pushUndo(); plane(pid)?.services.splice(i,1); render(); }
+function cycleSvc(pid,i){ const sv=plane(pid)?.services[i]; if(!sv) return; pushUndo(); const order=["vcg","vco","syslog"];
   sv.type=order[(order.indexOf(sv.type)+1)%order.length]; render(); }
 // ---- device edit/delete ----
 function editDevice(id){ const d=dev(id); if(!d) return;
-  const n=prompt("Name:",d.label); if(n===null) return;
+  const n=prompt("Name:",d.label); if(n===null) return; pushUndo();
   const c=prompt("Hosted in (on-prem / aws / azure / gcp):", d.cloud||"on-prem");
   if(c!==null){ const v=c.trim().toLowerCase(); d.cloud=["aws","azure","gcp"].includes(v)?v:undefined; }
   d.label=n.trim()||d.label; render(); }
-function toggleKind(id){ const d=dev(id); if(d){ d.kind=d.kind==="hub"?"spoke":"hub"; render(); } }
+function toggleKind(id){ const d=dev(id); if(d){ pushUndo(); d.kind=d.kind==="hub"?"spoke":"hub"; render(); } }
 function delDevice(id){ const d=dev(id); if(!d) return;
   if(!confirm(`Delete ${d.label} and its links/subnets/clouds?`)) return;
+  pushUndo();
   model.devices=model.devices.filter(x=>x.id!==id);
   model.links=model.links.filter(l=>l.from!==id&&l.to!==id);
   model.subnets=model.subnets.filter(s=>s.anchor!==id);
@@ -634,17 +668,17 @@ function delDevice(id){ const d=dev(id); if(!d) return;
 // ---- cloud edit/delete ----
 function editCloud(id){ const c=model.clouds.find(x=>x.id===id); if(!c) return;
   const p=prompt("Provider (aws / azure / gcp):",c.provider); if(p===null) return;
-  const cidr=prompt("CIDR:",c.cidr); if(cidr===null) return;
+  const cidr=prompt("CIDR:",c.cidr); if(cidr===null) return; pushUndo();
   c.provider=p.trim().toLowerCase()||c.provider; c.cidr=cidr.trim()||c.cidr; render(); }
-function cycleProvider(id){ const c=model.clouds.find(x=>x.id===id); const order=["aws","azure","gcp"];
+function cycleProvider(id){ const c=model.clouds.find(x=>x.id===id); if(!c) return; pushUndo(); const order=["aws","azure","gcp"];
   c.provider=order[(order.indexOf(c.provider)+1)%order.length]; render(); }
-function delCloud(id){ model.clouds=model.clouds.filter(c=>c.id!==id); render(); }
+function delCloud(id){ pushUndo(); model.clouds=model.clouds.filter(c=>c.id!==id); render(); }
 
-function resetModel(){ model=referenceModel(); render(); }
+function resetModel(){ pushUndo(); model=referenceModel(); render(); }
 function blankModel(){ return {devices:[],links:[],subnets:[],clouds:[],
   mgmt:{planes:[{id:"mp",label:"Management Plane",services:[]},{id:"cdp",label:"Control and Data Plane",services:[]}]}}; }
 function clearCanvas(){ if(!confirm("Clear the canvas? This removes all devices and connections.")) return;
-  model=blankModel(); render(); }
+  pushUndo(); model=blankModel(); render(); }
 
 /* ================= EXPORTS ============================================= */
 function download(name,text){ const b=new Blob([text],{type:"application/json"});
@@ -757,12 +791,74 @@ function buildResources(){
 function toggleResources(e){ e.stopPropagation(); document.getElementById("res-menu").classList.toggle("open"); }
 document.addEventListener("click",()=>document.getElementById("res-menu")?.classList.remove("open"));
 
-window.addEventListener("keydown",e=>{ if(e.key==="Escape") clearSelection(); });
+/* ================= ZOOM / FIT ========================================= */
+let zoom=1, lastBounds=null;
+function updateZoomUI(){ const el=document.getElementById("zoom-pct"); if(el) el.textContent=Math.round(zoom*100)+"%"; }
+function zoomBy(f){ zoom=Math.max(0.15,Math.min(4,zoom*f)); render(); }
+function zoomReset(){ zoom=1; render(); }
+function fitToScreen(){
+  if(!lastBounds) return; const c=document.querySelector(".canvas"); if(!c) return;
+  const pad=48, z=Math.min((c.clientWidth-pad)/lastBounds.W,(c.clientHeight-pad)/lastBounds.H);
+  zoom=Math.max(0.15,Math.min(4,z)); render();
+  c.scrollLeft=(c.scrollWidth-c.clientWidth)/2; c.scrollTop=(c.scrollHeight-c.clientHeight)/2;
+}
+
+/* ================= UNDO / REDO ======================================== */
+let undoStack=[], redoStack=[];
+function pushUndo(){ undoStack.push(JSON.stringify(model)); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; updateHistUI(); }
+function undo(){ if(!undoStack.length) return; redoStack.push(JSON.stringify(model)); model=JSON.parse(undoStack.pop()); selected=new Set(); render(); updateHistUI(); }
+function redo(){ if(!redoStack.length) return; undoStack.push(JSON.stringify(model)); model=JSON.parse(redoStack.pop()); selected=new Set(); render(); updateHistUI(); }
+function updateHistUI(){ const u=document.getElementById("btn-undo"),r=document.getElementById("btn-redo");
+  if(u) u.disabled=!undoStack.length; if(r) r.disabled=!redoStack.length; }
+
+/* ================= STARTER TEMPLATES ================================== */
+function mgmtDefault(){ return {planes:[
+  {id:"mp",label:"Management Plane",services:[{id:"vco1",label:"VCO",ip:"",type:"vco"}]},
+  {id:"cdp",label:"Control and Data Plane",services:[{id:"gw1",label:"GW1",ip:"",type:"vcg"},{id:"gw2",label:"GW2",ip:"",type:"vcg"}]}
+]}; }
+const TEMPLATES={
+  hubspoke:{ label:"Hub & Spoke", build(){
+    const devices=[{id:"h1",kind:"hub",label:"Hub1"}], links=[], subnets=[{id:"sh1",anchor:"h1",cidr:"10.0.0.0/24"}];
+    for(let i=1;i<=3;i++){ const id="s"+i; devices.push({id,kind:"spoke",label:"Spoke"+i});
+      links.push({id:"l"+i,from:id,to:"h1",transport:"sdwan"}); subnets.push({id:"ss"+i,anchor:id,cidr:"10.0."+i+".0/24"}); }
+    return {devices,links,subnets,clouds:[],mgmt:mgmtDefault()};
+  }},
+  fullmesh:{ label:"Full Mesh", build(){
+    const devices=[],links=[],subnets=[], n=4;
+    for(let i=1;i<=n;i++){ const id="m"+i; devices.push({id,kind:"hub",label:"Site"+i}); subnets.push({id:"sm"+i,anchor:id,cidr:"10.0."+i+".0/24"}); }
+    let k=0; for(let i=1;i<=n;i++) for(let j=i+1;j<=n;j++) links.push({id:"l"+(k++),from:"m"+i,to:"m"+j,transport:"sdwan"});
+    return {devices,links,subnets,clouds:[],mgmt:mgmtDefault()};
+  }},
+  multiregion:{ label:"Multi-Region", build(){
+    const devices=[{id:"ha",kind:"hub",label:"Region-A Hub"},{id:"hb",kind:"hub",label:"Region-B Hub"}];
+    const links=[{id:"lab",from:"ha",to:"hb",transport:"sdwan"}];
+    const subnets=[{id:"sha",anchor:"ha",cidr:"10.10.0.0/24"},{id:"shb",anchor:"hb",cidr:"10.20.0.0/24"}];
+    [["ha","A",10],["hb","B",20]].forEach(([hub,reg,base])=>{ for(let i=1;i<=2;i++){ const id=hub+"s"+i;
+      devices.push({id,kind:"spoke",label:reg+"-Spoke"+i}); links.push({id:"l"+id,from:id,to:hub,transport:"sdwan"});
+      subnets.push({id:"su"+id,anchor:id,cidr:"10."+base+"."+i+".0/24"}); } });
+    return {devices,links,subnets,clouds:[],mgmt:mgmtDefault()};
+  }}
+};
+function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
+  document.getElementById("tpl-menu")?.classList.remove("open");
+  if(model.devices.length && !confirm("Replace the current canvas with the "+t.label+" template?")) return;
+  pushUndo(); model=t.build(); selected=new Set(); zoom=1; render(); }
+function toggleTemplates(e){ e.stopPropagation(); document.getElementById("tpl-menu").classList.toggle("open"); }
+document.addEventListener("click",()=>document.getElementById("tpl-menu")?.classList.remove("open"));
+
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){ clearSelection(); return; }
+  const t=e.target.tagName; if(t==="INPUT"||t==="SELECT"||t==="TEXTAREA") return;
+  const meta=e.metaKey||e.ctrlKey;
+  if(meta && e.key.toLowerCase()==="z"){ e.preventDefault(); e.shiftKey?redo():undo(); }
+  else if(meta && e.key.toLowerCase()==="y"){ e.preventDefault(); redo(); }
+});
 
 buildResources();
 render();
 initDraw();
 initResize();
+updateHistUI();
 </script>
 </body>
 </html>
