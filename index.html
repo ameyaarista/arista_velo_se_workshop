@@ -195,7 +195,7 @@ let model = referenceModel();
 const dev = id => model.devices.find(d=>d.id===id);
 const isCore = k => k==="hub" || k==="cluster";       // "core" nodes sit in the top tier
 const hubs = () => model.devices.filter(d=>isCore(d.kind));
-const spokes = () => model.devices.filter(d=>d.kind==="spoke"||d.kind==="firewall");   // leaf nodes (bottom tier)
+const spokes = () => model.devices.filter(d=>d.kind==="spoke"||d.kind==="firewall"||d.kind==="vwan");   // leaf nodes (bottom tier)
 function primaryHub(sp){                       // core node this spoke first connects to
   for(const l of model.links){
     if(l.from===sp.id && isCore(dev(l.to)?.kind)) return l.to;
@@ -241,7 +241,9 @@ function computeGeometry(){
     const mgX=d.pl.x!=null?d.pl.x:defCx, mgY=d.pl.y!=null?d.pl.y:G.mgmtTop;
     pos["plane:"+d.pl.id]={x:mgX,y:mgY,mW:d.mW,mH:pMH,ptype:"plane",pl:d.pl};
     d.pl.services.forEach((sv,i)=>{ const n=d.pl.services.length;
-      pos["svc:"+sv.id]={x:mgX-(n-1)*45+i*90, y:mgY+16, ptype:"svc", svc:sv, plane:d.pl}; });
+      let sx=mgX-(n-1)*45+i*90, sy=mgY+16;
+      if(sv.x!=null&&sv.y!=null){ sx=sv.x; sy=sv.y; }        // independent drag override
+      pos["svc:"+sv.id]={x:sx, y:sy, ptype:"svc", svc:sv, plane:d.pl}; });
   });
 
   // attach subnets/clouds on the side of a device AWAY from its links (avoids overlap)
@@ -342,6 +344,32 @@ function firewallNode(p){
     +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
     +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
 }
+// Azure Virtual WAN: light-blue cloud + blue globe + pink connector dots
+function vwanIcon(cx,cy,r){
+  const f=n=>n.toFixed(1); let g="";
+  const cy0=cy-0.28*r;
+  g+=`<g fill="#38b6f1">`
+    +`<circle cx="${f(cx-0.36*r)}" cy="${f(cy0)}" r="${f(0.4*r)}"/>`
+    +`<circle cx="${f(cx+0.36*r)}" cy="${f(cy0)}" r="${f(0.4*r)}"/>`
+    +`<circle cx="${f(cx)}" cy="${f(cy0-0.26*r)}" r="${f(0.46*r)}"/>`
+    +`<rect x="${f(cx-0.74*r)}" y="${f(cy0-0.05*r)}" width="${f(1.48*r)}" height="${f(0.5*r)}" rx="${f(0.22*r)}"/></g>`;
+  const gy=cy+0.3*r, gr=0.42*r;
+  g+=`<circle cx="${cx}" cy="${f(gy)}" r="${f(gr)}" fill="#1f6bb0"/>`;
+  g+=`<g stroke="#fff" stroke-width="${f(Math.max(0.8,gr*0.13))}" fill="none">`
+    +`<line x1="${f(cx-gr)}" y1="${f(gy)}" x2="${f(cx+gr)}" y2="${f(gy)}"/>`
+    +`<line x1="${cx}" y1="${f(gy-gr)}" x2="${cx}" y2="${f(gy+gr)}"/>`
+    +`<ellipse cx="${cx}" cy="${f(gy)}" rx="${f(gr*0.48)}" ry="${f(gr)}"/>`
+    +`<ellipse cx="${cx}" cy="${f(gy)}" rx="${f(gr)}" ry="${f(gr*0.48)}"/></g>`;
+  g+=`<circle cx="${f(cx-0.5*r)}" cy="${f(cy+0.05*r)}" r="${f(0.11*r)}" fill="#d6559b"/>`
+    +`<circle cx="${f(cx+0.5*r)}" cy="${f(cy+0.05*r)}" r="${f(0.11*r)}" fill="#d6559b"/>`;
+  return g;
+}
+function vwanNode(p){
+  const r=32, ly=p.y+r+20, lbl=esc(p.node.label), w=lbl.length*7.6+12;
+  return vwanIcon(p.x,p.y,r)
+    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
+    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+}
 function clusterNode(p){
   const r=24, dx=32, padX=dx+r+12, padY=r+14;
   const lbl=esc(p.node.label), w=lbl.length*7.6+12, ly=p.y+padY+16;
@@ -354,6 +382,7 @@ function clusterNode(p){
 function deviceNode(p){
   if(p.kind==="cluster") return clusterNode(p);
   if(p.kind==="firewall") return firewallNode(p);
+  if(p.kind==="vwan") return vwanNode(p);
   const isHub=p.kind==="hub", fill=isHub?"var(--hub)":"var(--spoke)", r=isHub?38:32;
   const ly=isHub?p.y-r-14:p.y+r+20;              // hub label above, spoke label below — clear of links
   const lbl=esc(p.node.label), w=lbl.length*7.6+12;
@@ -413,10 +442,10 @@ function render(){
   // selection halos (under nodes) + delete badges (collected, drawn on top)
   let selBadges="";
   selected.forEach(id=>{ const p=pos[id]; if(!p) return;
-    const hw=p.ptype==="plane"?p.mW/2+8:p.ptype==="cloud"?86:(p.kind==="cluster"?74:p.kind?50:64);
-    const hh=p.ptype==="plane"?p.mH/2+8:p.ptype==="cloud"?38:(p.kind==="cluster"?46:p.kind?52:24);
+    const hw=p.ptype==="plane"?p.mW/2+8:p.ptype==="svc"?32:p.ptype==="cloud"?86:(p.kind==="cluster"?74:p.kind?50:64);
+    const hh=p.ptype==="plane"?p.mH/2+8:p.ptype==="svc"?44:p.ptype==="cloud"?38:(p.kind==="cluster"?46:p.kind?52:24);
     s+=`<rect x="${p.x-hw}" y="${p.y-hh}" width="${hw*2}" height="${hh*2}" rx="10" fill="rgba(37,99,235,.08)" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="5 3"/>`;
-    if(dev(id)||model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)){
+    if(dev(id)||model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)||id.startsWith("svc:")){
       const bx=p.x+hw-4, by=p.y-hh+10, ex=bx-22;
       selBadges+=`<g class="edit-badge" data-id="${id}" style="cursor:pointer"><title>Edit label</title>`
         +`<circle cx="${ex}" cy="${by}" r="9" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>`
@@ -427,21 +456,25 @@ function render(){
         +`<line x1="${bx-3.4}" y1="${by+3.4}" x2="${bx+3.4}" y2="${by-3.4}" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></g>`;
     }
   });
-  // management planes — dotted rects, positions from layout
+  // management planes — dotted container box (draggable on its own)
   model.mgmt.planes.forEach(pl=>{ const P=pos["plane:"+pl.id]; if(!P) return; const top=P.y-P.mH/2;
-    let mg=`<rect x="${P.x-P.mW/2}" y="${top}" width="${P.mW}" height="${P.mH}" rx="8" fill="var(--mgmt)" stroke="var(--mgmt-b)" stroke-width="1.5" stroke-dasharray="7 5"/>`
+    const box=`<rect x="${P.x-P.mW/2}" y="${top}" width="${P.mW}" height="${P.mH}" rx="8" fill="var(--mgmt)" stroke="var(--mgmt-b)" stroke-width="1.5" stroke-dasharray="7 5"/>`
       +`<text x="${P.x}" y="${top+26}" text-anchor="middle" font-size="12" font-weight="600">${esc(pl.label)}</text>`;
-    pl.services.forEach(sv=>{ const S=pos["svc:"+sv.id]; if(!S) return; const x=S.x, sy=S.y, ir=24;
-      if(sv.type==="vcg") mg+=vcgIcon(x,sy,ir);
-      else if(sv.type==="vco") mg+=vcoIcon(x,sy,ir);
-      else { const b=ir*0.55; mg+=`<circle cx="${x}" cy="${sy}" r="${ir}" fill="#2f80c9"/>`
-        +`<rect x="${x-b}" y="${sy-b}" width="${2*b}" height="${2*b}" rx="2" fill="none" stroke="#fff" stroke-width="1.8"/>`
-        +`<line x1="${x-b}" y1="${sy-b/3}" x2="${x+b}" y2="${sy-b/3}" stroke="#fff" stroke-width="1.4"/>`
-        +`<line x1="${x-b}" y1="${sy+b/3}" x2="${x+b}" y2="${sy+b/3}" stroke="#fff" stroke-width="1.4"/>`; }
-      mg+=`<text x="${x}" y="${sy+ir+12}" text-anchor="middle" font-size="9" font-weight="600" fill="#374151">${esc(sv.label)}</text>`
-        +`<text x="${x}" y="${sy+ir+23}" text-anchor="middle" font-size="8" fill="#6b7280">${esc(sv.ip)}</text>`; });
-    s+=`<g class="node" data-id="plane:${pl.id}" style="cursor:grab">${mg}</g>`;
+    s+=`<g class="node" data-id="plane:${pl.id}" style="cursor:grab">${box}</g>`;
   });
+  // management service nodes (VCO/VCG) — each independently draggable
+  model.mgmt.planes.forEach(pl=>{ pl.services.forEach(sv=>{ const S=pos["svc:"+sv.id]; if(!S) return; const x=S.x, sy=S.y, ir=24;
+    let mg="";
+    if(sv.type==="vcg") mg+=vcgIcon(x,sy,ir);
+    else if(sv.type==="vco") mg+=vcoIcon(x,sy,ir);
+    else { const b=ir*0.55; mg+=`<circle cx="${x}" cy="${sy}" r="${ir}" fill="#2f80c9"/>`
+      +`<rect x="${x-b}" y="${sy-b}" width="${2*b}" height="${2*b}" rx="2" fill="none" stroke="#fff" stroke-width="1.8"/>`
+      +`<line x1="${x-b}" y1="${sy-b/3}" x2="${x+b}" y2="${sy-b/3}" stroke="#fff" stroke-width="1.4"/>`
+      +`<line x1="${x-b}" y1="${sy+b/3}" x2="${x+b}" y2="${sy+b/3}" stroke="#fff" stroke-width="1.4"/>`; }
+    mg+=`<text x="${x}" y="${sy+ir+12}" text-anchor="middle" font-size="9" font-weight="600" fill="#374151">${esc(sv.label)}</text>`
+      +`<text x="${x}" y="${sy+ir+23}" text-anchor="middle" font-size="8" fill="#6b7280">${esc(sv.ip)}</text>`;
+    s+=`<g class="node" data-id="svc:${sv.id}" style="cursor:grab">${mg}</g>`;
+  }); });
   // nodes on top — all draggable
   model.subnets.forEach(su=>{ if(pos[su.id]) s+=`<g class="node" data-id="${su.id}" style="cursor:grab">${subnetNode(pos[su.id])}</g>`; });
   model.clouds.forEach(c=>{ if(pos[c.id]) s+=`<g class="node" data-id="${c.id}" style="cursor:grab">${cloudNode(pos[c.id])}</g>`; });
@@ -478,10 +511,13 @@ function svgPoint(svg,e){ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.cli
   return p.matrixTransform(svg.getScreenCTM().inverse()); }
 function scheduleRender(){ if(raf) return; raf=requestAnimationFrame(()=>{raf=0;render();}); }
 function entity(id){ if(id.startsWith("plane:")) return model.mgmt.planes.find(p=>p.id===id.slice(6));
+  if(id.startsWith("svc:")){ const sid=id.slice(4); for(const pl of model.mgmt.planes){ const sv=pl.services.find(v=>v.id===sid); if(sv) return sv; } return null; }
   return model.devices.find(d=>d.id===id)||model.subnets.find(s=>s.id===id)||model.clouds.find(c=>c.id===id); }
+function svcRef(id){ const sid=id.slice(4); for(const pl of model.mgmt.planes){ const i=pl.services.findIndex(v=>v.id===sid); if(i>=0) return {pl,i,sv:pl.services[i]}; } return null; }
 function selectableIds(){ return [
   ...model.devices.map(d=>d.id), ...model.subnets.map(s=>s.id),
-  ...model.clouds.map(c=>c.id), ...model.mgmt.planes.map(p=>"plane:"+p.id) ]; }
+  ...model.clouds.map(c=>c.id), ...model.mgmt.planes.map(p=>"plane:"+p.id),
+  ...model.mgmt.planes.flatMap(p=>p.services.map(s=>"svc:"+s.id)) ]; }
 function bindDrag(svg){
   svg.addEventListener("pointerdown",e=>{
     const lbadge=e.target.closest(".link-del-badge");
@@ -542,13 +578,16 @@ function updateMarquee(e){
 function endMarquee(){ if(!marquee) return; marquee.div.remove(); marquee=null; render(); }
 function clearSelection(){ if(selected.size||selectedLink){ selected=new Set(); selectedLink=null; render(); } }
 function editSelectedEntity(id){
+  if(id.startsWith("svc:")){ const r=svcRef(id); if(r) editService(r.pl.id,r.i); return; }
   if(dev(id)) editDevice(id);
   else if(model.subnets.some(s=>s.id===id)) editSubnet(id);
   else if(model.clouds.some(c=>c.id===id)) editCloud(id);
 }
 function deleteSelectedEntity(id){
   pushUndo();
-  if(dev(id)){                                             // device -> also drop its links/subnets/clouds
+  if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
+    model.links=model.links.filter(l=>l.from!==id&&l.to!==id); model.clouds=model.clouds.filter(c=>c.anchor!==id);
+  } else if(dev(id)){                                       // device -> also drop its links/subnets/clouds
     model.devices=model.devices.filter(x=>x.id!==id);
     model.links=model.links.filter(l=>l.from!==id&&l.to!==id);
     model.subnets=model.subnets.filter(s=>s.anchor!==id);
@@ -645,18 +684,20 @@ function renderSuggestions(){
   if(!sd){ sec.style.display="none"; box.innerHTML=""; return; }
   sec.style.display="";
   const connected=new Set(); model.links.forEach(l=>{ if(l.from===sd.id) connected.add(l.to); if(l.to===sd.id) connected.add(l.from); });
-  const cand=model.devices.filter(d=>d.id!==sd.id && !connected.has(d.id) && canConnectKinds(sd.kind,d.kind));
+  const cand=model.devices.filter(d=>d.id!==sd.id && !connected.has(d.id) && canConnectDevices(sd,d));
   const hubTargets=cand.filter(d=>isCore(d.kind));
   const spokeTargets=cand.filter(d=>d.kind==="spoke");
   const fwTargets=cand.filter(d=>d.kind==="firewall");
+  const vwanTargets=cand.filter(d=>d.kind==="vwan");
   const gwTargets=[]; model.mgmt.planes.forEach(pl=>pl.services.forEach(sv=>{ if(sv.type==="vcg"){ const gid="svc:"+sv.id; if(!connected.has(gid)) gwTargets.push({id:gid,label:sv.label}); } }));
-  const kc=k=>k==="hub"?"#57bf5b":k==="cluster"?"#2f855a":k==="firewall"?"#f4685f":"#2b9fd8";
+  const kc=k=>k==="hub"?"#57bf5b":k==="cluster"?"#2f855a":k==="firewall"?"#f4685f":k==="vwan"?"#38b6f1":"#2b9fd8";
   const sug=(tid,label,tag,color)=>`<li><span>${esc(label)} <span class="tag" style="background:${color}">${esc(tag)}</span></span>`
     +`<span class="ed" style="color:#159957;font-weight:800;font-size:15px" title="Add connection" onclick="connectSuggested('${sd.id}','${tid}')">＋</span></li>`;
   let h=`<div class="hint" style="margin-top:0">From <b>${esc(sd.label)}</b> — click ＋ to add.</div>`;
   if(hubTargets.length) h+=`<div class="grp">Hubs / clusters</div><ul class="links">${hubTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(spokeTargets.length) h+=`<div class="grp">Spokes</div><ul class="links">${spokeTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(fwTargets.length) h+=`<div class="grp">Firewalls</div><ul class="links">${fwTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
+  if(vwanTargets.length) h+=`<div class="grp">Virtual WAN</div><ul class="links">${vwanTargets.map(d=>sug(d.id,d.label,"vwan",kc(d.kind))).join("")}</ul>`;
   if(gwTargets.length) h+=`<div class="grp">Gateways</div><ul class="links">${gwTargets.map(g=>sug(g.id,g.label,"VCG","#2b9fd8")).join("")}</ul>`;
   if(!cand.length && !gwTargets.length) h+=`<div class="muted">No further connections available.</div>`;
   // always offer a new subnet on this device
@@ -672,6 +713,13 @@ function canConnectKinds(a,b){                            // allowed device↔de
   if((a==="spoke"&&isCore(b))||(b==="spoke"&&isCore(a))) return true;   // spoke ↔ core
   return false;
 }
+function canConnectDevices(a,b){                          // cloud-aware pairing
+  if(a.kind==="vwan"||b.kind==="vwan"){                  // Virtual WAN ↔ Azure hub only (gateways handled separately)
+    const other=a.kind==="vwan"?b:a;
+    return other.kind==="hub" && other.cloud==="azure";
+  }
+  return canConnectKinds(a.kind,b.kind);
+}
 function connectSuggested(a,b){ pushUndo(); model.links.push({id:uid("l"),from:a,to:b,transport:"sdwan"}); render(); }
 function addSuggestedSubnet(id){ pushUndo(); model.subnets.push({id:uid("s"),anchor:id,cidr:nextSubnetCidr()}); render(); }
 function renderChecks(){ const el=document.getElementById("checks"); if(!el) return;
@@ -683,7 +731,7 @@ function renderChecks(){ const el=document.getElementById("checks"); if(!el) ret
 function uid(p){ return p+Math.random().toString(36).slice(2,7); }
 function addDevice(kind,cloud){
   pushUndo();
-  const base=kind==="hub"?"Hub":kind==="cluster"?"Cluster":kind==="firewall"?"FW":"Spoke";
+  const base=kind==="hub"?"Hub":kind==="cluster"?"Cluster":kind==="firewall"?"FW":kind==="vwan"?"vWAN":"Spoke";
   const name=base+(model.devices.filter(d=>d.kind===kind).length+1);
   model.devices.push({id:uid("d"),kind,label:name,cloud:cloud||undefined});
   render();
@@ -713,6 +761,7 @@ function buildPalette(){
     ["GCP Hub","addDevice('hub','gcp')",cloudHubIcon('gcp')],
     ["Cluster","addDevice('cluster')",clusterIc],
     ["Firewall","addDevice('firewall')",paletteSvg("0 0 28 28",firewallIcon(14,14,11,'var(--firewall)'))],
+    ["Virtual WAN","addDevice('vwan')",paletteSvg("0 0 28 28",vwanIcon(14,14,11))],
     ["VCO","addMgmt('vco')",paletteSvg("0 0 28 28",vcoIcon(14,14,11))],
     ["VCG","addMgmt('vcg')",paletteSvg("0 0 28 28",vcgIcon(14,14,11))],
   ];
@@ -996,7 +1045,9 @@ window.addEventListener("keydown",e=>{
   if(e.key==="Delete"||e.key==="Backspace"){
     if(selectedLink){ e.preventDefault(); delLink(selectedLink); return; }
     if(selected.size){ e.preventDefault(); pushUndo(); [...selected].forEach(id=>{
-      if(dev(id)){ model.devices=model.devices.filter(x=>x.id!==id);
+      if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
+        model.links=model.links.filter(l=>l.from!==id&&l.to!==id); model.clouds=model.clouds.filter(c=>c.anchor!==id); }
+      else if(dev(id)){ model.devices=model.devices.filter(x=>x.id!==id);
         model.links=model.links.filter(l=>l.from!==id&&l.to!==id);
         model.subnets=model.subnets.filter(s=>s.anchor!==id);
         model.clouds=model.clouds.filter(c=>c.anchor!==id); }
