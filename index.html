@@ -768,9 +768,7 @@ function renderSuggestions(){
 }
 function canConnectKinds(a,b){                            // allowed device↔device pairs (gateways handled separately)
   const fwOK=k=>k==="spoke"||k==="hub"||k==="cluster";   // firewall / SASE connect to spoke/hub/cluster
-  const inetOK=k=>k==="spoke"||k==="hub"||k==="cluster"||k==="firewall";   // internet connects to edges + firewall
-  if(a==="internet") return inetOK(b);
-  if(b==="internet") return inetOK(a);
+  if(a==="internet"||b==="internet") return true;        // internet connects to any component
   if(a==="firewall"||isSSE(a)) return fwOK(b);
   if(b==="firewall"||isSSE(b)) return fwOK(a);
   if(isCore(a)&&isCore(b)) return true;                  // core ↔ core
@@ -778,6 +776,7 @@ function canConnectKinds(a,b){                            // allowed device↔de
   return false;
 }
 function canConnectDevices(a,b){                          // cloud-aware pairing
+  if(a.kind==="internet"||b.kind==="internet") return true;   // internet connects to any component
   if(a.kind==="vwan"||b.kind==="vwan"){                  // Virtual WAN ↔ Azure hub only (gateways handled separately)
     const other=a.kind==="vwan"?b:a;
     return other.kind==="hub" && other.cloud==="azure";
