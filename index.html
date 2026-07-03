@@ -69,7 +69,7 @@
   .chk.err{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
   .chk.ok{background:#dcfce7;color:#166534;border:1px solid #86efac}
   .chk b{font-weight:600}
-  .palette{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px}
   .pal-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 3px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:10px;color:#374151;font-weight:500;line-height:1.1;text-align:center}
   .pal-btn:hover{background:#f3f4f6;border-color:#c7ccd4}
   .pal-btn svg{display:block;height:28px}
@@ -731,22 +731,29 @@ function runChecks(){
 /* ---- suggested connections for the selected device ---- */
 function renderSuggestions(){
   const sec=document.getElementById("suggest-section"), box=document.getElementById("suggest"); if(!sec) return;
-  const ids=[...selected], sd=ids.length===1?dev(ids[0]):null;
-  if(!sd){ sec.style.display="none"; box.innerHTML=""; return; }
+  const ids=[...selected]; if(ids.length!==1){ sec.style.display="none"; box.innerHTML=""; return; }
+  const selId=ids[0], sd=dev(selId);
+  const gwRef=(!sd && selId.startsWith("svc:")) ? svcRef(selId) : null;
+  const gwSel=(gwRef && gwRef.sv.type==="vcg") ? gwRef.sv : null;
+  if(!sd && !gwSel){ sec.style.display="none"; box.innerHTML=""; return; }
   sec.style.display="";
-  const connected=new Set(); model.links.forEach(l=>{ if(l.from===sd.id) connected.add(l.to); if(l.to===sd.id) connected.add(l.from); });
-  const cand=model.devices.filter(d=>d.id!==sd.id && !connected.has(d.id) && canConnectDevices(sd,d));
+  const connected=new Set(); model.links.forEach(l=>{ if(l.from===selId) connected.add(l.to); if(l.to===selId) connected.add(l.from); });
+  // gateway can connect to ANY device; a device connects per canConnectDevices
+  const cand = sd
+    ? model.devices.filter(d=>d.id!==selId && !connected.has(d.id) && canConnectDevices(sd,d))
+    : model.devices.filter(d=>!connected.has(d.id));
   const hubTargets=cand.filter(d=>isCore(d.kind));
   const spokeTargets=cand.filter(d=>d.kind==="spoke");
   const fwTargets=cand.filter(d=>d.kind==="firewall");
   const vwanTargets=cand.filter(d=>d.kind==="vwan");
   const sseTargets=cand.filter(d=>isSSE(d.kind));
   const inetTargets=cand.filter(d=>d.kind==="internet");
-  const gwTargets=[]; model.mgmt.planes.forEach(pl=>pl.services.forEach(sv=>{ if(sv.type==="vcg"){ const gid="svc:"+sv.id; if(!connected.has(gid)) gwTargets.push({id:gid,label:sv.label}); } }));
+  const gwTargets = sd ? [] : [];  // gateways only offered from a device
+  if(sd) model.mgmt.planes.forEach(pl=>pl.services.forEach(sv=>{ if(sv.type==="vcg"){ const gid="svc:"+sv.id; if(!connected.has(gid)) gwTargets.push({id:gid,label:sv.label}); } }));
   const kc=k=>k==="hub"?"#57bf5b":k==="cluster"?"#2f855a":k==="firewall"?"#f4685f":k==="vwan"?"#38b6f1":k==="internet"?"#0d6efd":k==="zscaler"?"#0d6efd":k==="prisma"?"#00c2e8":k==="netskope"?"#ff8a00":"#2b9fd8";
   const sug=(tid,label,tag,color)=>`<li><span>${esc(label)} <span class="tag" style="background:${color}">${esc(tag)}</span></span>`
-    +`<span class="ed" style="color:#159957;font-weight:800;font-size:15px" title="Add connection" onclick="connectSuggested('${sd.id}','${tid}')">＋</span></li>`;
-  let h=`<div class="hint" style="margin-top:0">From <b>${esc(sd.label)}</b> — click ＋ to add.</div>`;
+    +`<span class="ed" style="color:#159957;font-weight:800;font-size:15px" title="Add connection" onclick="connectSuggested('${selId}','${tid}')">＋</span></li>`;
+  let h=`<div class="hint" style="margin-top:0">From <b>${esc(sd?sd.label:gwSel.label)}</b> — click ＋ to add.</div>`;
   if(hubTargets.length) h+=`<div class="grp">Hubs / clusters</div><ul class="links">${hubTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(spokeTargets.length) h+=`<div class="grp">Spokes</div><ul class="links">${spokeTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
   if(fwTargets.length) h+=`<div class="grp">Firewalls</div><ul class="links">${fwTargets.map(d=>sug(d.id,d.label,d.kind,kc(d.kind))).join("")}</ul>`;
@@ -755,9 +762,8 @@ function renderSuggestions(){
   if(inetTargets.length) h+=`<div class="grp">Internet</div><ul class="links">${inetTargets.map(d=>sug(d.id,d.label,"internet",kc(d.kind))).join("")}</ul>`;
   if(gwTargets.length) h+=`<div class="grp">Gateways</div><ul class="links">${gwTargets.map(g=>sug(g.id,g.label,"VCG","#2b9fd8")).join("")}</ul>`;
   if(!cand.length && !gwTargets.length) h+=`<div class="muted">No further connections available.</div>`;
-  // always offer a new subnet on this device
-  h+=`<div class="grp">Subnet</div><ul class="links"><li><span>New subnet <span class="tag" style="background:#2f80c9">${esc(nextSubnetCidr())}</span></span>`
-    +`<span class="ed" style="color:#159957;font-weight:800;font-size:15px" title="Add subnet" onclick="addSuggestedSubnet('${sd.id}')">＋</span></li></ul>`;
+  if(sd){ h+=`<div class="grp">Subnet</div><ul class="links"><li><span>New subnet <span class="tag" style="background:#2f80c9">${esc(nextSubnetCidr())}</span></span>`
+    +`<span class="ed" style="color:#159957;font-weight:800;font-size:15px" title="Add subnet" onclick="addSuggestedSubnet('${sd.id}')">＋</span></li></ul>`; }
   box.innerHTML=h;
 }
 function canConnectKinds(a,b){                            // allowed device↔device pairs (gateways handled separately)
