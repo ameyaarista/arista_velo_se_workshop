@@ -16,8 +16,10 @@
   header h1{font-size:16px;margin:0;font-weight:600}
   header .sub{font-size:12px;color:#6b7280}
   .layout{display:flex;height:calc(100vh - 55px);min-height:620px}
-  .panel{width:320px;min-width:320px;background:#fff;border-right:1px solid #e5e7eb;padding:16px;overflow:auto}
+  .panel{width:320px;min-width:220px;flex:0 0 auto;background:#fff;border-right:1px solid #e5e7eb;padding:16px;overflow:auto}
   .panel.right{border-right:none;border-left:1px solid #e5e7eb}
+  .gutter{flex:0 0 6px;cursor:col-resize;background:#eef0f2;transition:background .15s}
+  .gutter:hover,.gutter.dragging{background:#c7ccd4}
   .canvas{flex:1;overflow:auto;background:#fff;position:relative;display:flex}
   #stage{position:relative;margin:auto}
   #draw{position:absolute;top:0;left:0;pointer-events:none}
@@ -68,7 +70,7 @@
 </header>
 
 <div class="layout">
-  <aside class="panel">
+  <aside class="panel" id="panel-left">
 
     <div class="section">
       <h2>Annotate</h2>
@@ -171,6 +173,8 @@
 
   </aside>
 
+  <div class="gutter" data-target="panel-left" data-side="left" title="Drag to resize"></div>
+
   <main class="canvas">
     <div id="stage">
       <div id="topo-holder"></div>
@@ -178,7 +182,9 @@
     </div>
   </main>
 
-  <aside class="panel right">
+  <div class="gutter" data-target="panel-right" data-side="right" title="Drag to resize"></div>
+
+  <aside class="panel right" id="panel-right">
     <div class="section">
       <h2>Edit elements</h2>
       <div id="elements"></div>
@@ -601,8 +607,29 @@ function toLucid(){
 function downloadLucid(){ download("document.json",JSON.stringify(toLucid(),null,2));
   alert("Saved document.json.\n\nTo import: zip it as topology.lucid (document.json at root),\nthen POST to Lucid's Create Document with the Standard Import File endpoint (product=lucidchart)."); }
 
+/* ================= RESIZABLE SIDE PANELS =============================== */
+function initResize(){
+  document.querySelectorAll('.gutter').forEach(g=>{
+    const panel=document.getElementById(g.dataset.target), side=g.dataset.side;
+    let startX=0,startW=0,dragging=false;
+    g.addEventListener('pointerdown',e=>{ dragging=true; startX=e.clientX; startW=panel.offsetWidth;
+      g.classList.add('dragging'); g.setPointerCapture(e.pointerId); e.preventDefault(); });
+    g.addEventListener('pointermove',e=>{ if(!dragging) return;
+      const dx=e.clientX-startX;
+      let w=side==='left'?startW+dx:startW-dx;
+      w=Math.max(220,Math.min(600,w));
+      panel.style.width=w+'px'; panel.style.minWidth=w+'px'; });
+    const end=e=>{ if(!dragging) return; dragging=false; g.classList.remove('dragging');
+      try{ g.releasePointerCapture(e.pointerId); }catch(_){} render(); };
+    g.addEventListener('pointerup',end);
+    g.addEventListener('pointercancel',end);
+    g.addEventListener('dblclick',()=>{ panel.style.width='320px'; panel.style.minWidth='220px'; render(); }); // dbl-click resets
+  });
+}
+
 render();
 initDraw();
+initResize();
 </script>
 </body>
 </html>
