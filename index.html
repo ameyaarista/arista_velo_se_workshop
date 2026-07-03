@@ -599,7 +599,7 @@ function toLucid(){
   return {version:1,pages:[{id:"page1",title:"Network HLD",shapes,lines}]};
 }
 function downloadLucid(){ download("document.json",JSON.stringify(toLucid(),null,2));
-  alert("Saved document.json.\n\nTo import: zip it as topology.lucid (document.json at root),\nthen POST to Lucid's Create Document with Standard Import File endpoint (product=lucidchart)."); }
+  alert("Saved document.json.\n\nTo import: zip it as topology.lucid (document.json at root),\nthen POST to Lucid's Create Document with the Standard Import File endpoint (product=lucidchart)."); }
 
 render();
 initDraw();
