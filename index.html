@@ -604,16 +604,17 @@ function initDraw(){ const dr=document.getElementById("draw"); if(!dr) return;
 function opts(list,ph){ return (ph?`<option value="">${ph}</option>`:"")+list.map(d=>`<option value="${d.id}">${esc(d.label)}</option>`).join(""); }
 function refreshUI(){
   const all=model.devices;
-  document.getElementById("d-connto").innerHTML=opts(all,"— none —");
-  document.getElementById("c-from").innerHTML=opts(all);
-  document.getElementById("c-to").innerHTML=opts(all);
   const vcgOpts=[]; model.mgmt.planes.forEach(pl=>pl.services.forEach(sv=>{ if(sv.type==="vcg") vcgOpts.push(`<option value="svc:${sv.id}">${esc(sv.label)} (VCG)</option>`); }));
+  const gwGroup=vcgOpts.length?`<optgroup label="Gateways">${vcgOpts.join("")}</optgroup>`:"";
+  document.getElementById("d-connto").innerHTML=opts(all,"— none —")+gwGroup;
+  document.getElementById("c-from").innerHTML=opts(all)+gwGroup;   // any node ↔ gateway
+  document.getElementById("c-to").innerHTML=opts(all)+gwGroup;
   document.getElementById("cl-anchor").innerHTML=opts(all)+vcgOpts.join("");
   document.getElementById("su-anchor").innerHTML=opts(all);
   document.getElementById("m-plane").innerHTML=model.mgmt.planes.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join("");
   document.getElementById("link-list").innerHTML=model.links.map(l=>{
     const t=TR[linkStyleKey(l)]||TR.direct;
-    return `<li><span>${esc(dev(l.from)?.label||"?")} → ${esc(dev(l.to)?.label||"?")} <span class="tag" style="background:${t.c}">${t.t}</span></span><span class="x" onclick="delLink('${l.id}')">✕</span></li>`;
+    return `<li><span>${esc(anchorLabel(l.from))} → ${esc(anchorLabel(l.to))} <span class="tag" style="background:${t.c}">${t.t}</span></span><span class="x" onclick="delLink('${l.id}')">✕</span></li>`;
   }).join("")||`<li style="color:#9ca3af">no links yet</li>`;
   renderElements();
   renderChecks();
@@ -736,7 +737,9 @@ function addService(){
 function editService(pid,i){ const sv=plane(pid)?.services[i]; if(!sv) return;
   const l=prompt("Label:",sv.label); if(l===null) return; const ip=prompt("IP:",sv.ip||""); if(ip===null) return;
   pushUndo(); sv.label=l.trim()||sv.label; sv.ip=ip.trim(); render(); }
-function delService(pid,i){ pushUndo(); plane(pid)?.services.splice(i,1); render(); }
+function delService(pid,i){ const sv=plane(pid)?.services[i]; pushUndo();
+  if(sv){ const sid="svc:"+sv.id; model.links=model.links.filter(l=>l.from!==sid&&l.to!==sid); model.clouds=model.clouds.filter(c=>c.anchor!==sid); }
+  plane(pid)?.services.splice(i,1); render(); }
 function cycleSvc(pid,i){ const sv=plane(pid)?.services[i]; if(!sv) return; pushUndo(); const order=["vcg","vco","syslog"];
   sv.type=order[(order.indexOf(sv.type)+1)%order.length]; render(); }
 // ---- device edit/delete ----
