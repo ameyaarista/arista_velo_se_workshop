@@ -90,6 +90,8 @@
         <a href="#" onclick="applyTemplate('hubspoke');return false">Hub &amp; Spoke</a>
         <a href="#" onclick="applyTemplate('fullmesh');return false">Full Mesh</a>
         <a href="#" onclick="applyTemplate('multiregion');return false">Multi-Region</a>
+        <a href="#" onclick="applyTemplate('fivesite');return false">5-Site (2 hubs, 3 spokes)</a>
+        <a href="#" onclick="applyTemplate('threesite');return false">3-Site (1 hub, 2 spokes)</a>
       </div>
     </div>
     <div class="dropdown">
@@ -912,6 +914,10 @@ function mgmtDefault(){ return {planes:[
   {id:"mp",label:"Management Plane",services:[{id:"vco1",label:"VCO",ip:"",type:"vco"}]},
   {id:"cdp",label:"Control and Data Plane",services:[{id:"gw1",label:"GW1",ip:"",type:"vcg"},{id:"gw2",label:"GW2",ip:"",type:"vcg"}]}
 ]}; }
+function mgmtWithGateways(gws){ return {planes:[   // gateways placed on the Control and Data Plane
+  {id:"mp",label:"Management Plane",services:[{id:"vco1",label:"VCO",ip:"",type:"vco"}]},
+  {id:"cdp",label:"Control and Data Plane",services:gws.map(([id,label])=>({id,label,ip:"",type:"vcg"}))}
+]}; }
 const TEMPLATES={
   hubspoke:{ label:"Hub & Spoke", build(){
     const devices=[{id:"h1",kind:"hub",label:"Hub1"}], links=[], subnets=[{id:"sh1",anchor:"h1",cidr:"10.0.0.0/24"}];
@@ -933,6 +939,21 @@ const TEMPLATES={
       devices.push({id,kind:"spoke",label:reg+"-Spoke"+i}); links.push({id:"l"+id,from:id,to:hub,transport:"sdwan"});
       subnets.push({id:"su"+id,anchor:id,cidr:"10."+base+"."+i+".0/24"}); } });
     return {devices,links,subnets,clouds:[],mgmt:mgmtDefault()};
+  }},
+  fivesite:{ label:"5-Site (2 hubs, 3 spokes)", build(){
+    const hubs=[["hNY","NewYork"],["hFR","Frankfurt"]];
+    const spokes=[["sSJC","SanJose"],["sLON","London"],["sSYD","Sydney"]];
+    const devices=[...hubs.map(([id,label])=>({id,kind:"hub",label})),
+                   ...spokes.map(([id,label])=>({id,kind:"spoke",label}))];
+    const links=[]; let k=0;
+    spokes.forEach(([sid])=>hubs.forEach(([hid])=>links.push({id:"l"+(k++),from:sid,to:hid,transport:"sdwan"})));
+    return {devices,links,subnets:[],clouds:[],mgmt:mgmtWithGateways([["gSJC","VCG-SJC"],["gLON","VCG-LON"],["gSYD","VCG-SYD"]])};
+  }},
+  threesite:{ label:"3-Site (1 hub, 2 spokes)", build(){
+    const hub=["hSIN","Singapore"], spokes=[["sSYD","Sydney"],["sTOK","Tokyo"]];
+    const devices=[{id:hub[0],kind:"hub",label:hub[1]},...spokes.map(([id,label])=>({id,kind:"spoke",label}))];
+    const links=spokes.map(([sid],i)=>({id:"l"+i,from:sid,to:hub[0],transport:"sdwan"}));
+    return {devices,links,subnets:[],clouds:[],mgmt:mgmtWithGateways([["gSIN","VCG-SIN"],["gSYD","VCG-SYD"]])};
   }}
 };
 function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
