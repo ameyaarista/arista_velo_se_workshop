@@ -474,7 +474,7 @@ function render(){
     const hw=p.ptype==="plane"?p.mW/2+8:p.ptype==="svc"?32:p.ptype==="cloud"?86:(p.kind==="cluster"?74:p.kind?50:64);
     const hh=p.ptype==="plane"?p.mH/2+8:p.ptype==="svc"?44:p.ptype==="cloud"?38:(p.kind==="cluster"?46:p.kind?52:24);
     s+=`<rect x="${p.x-hw}" y="${p.y-hh}" width="${hw*2}" height="${hh*2}" rx="10" fill="rgba(37,99,235,.08)" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="5 3"/>`;
-    if(dev(id)||model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)||id.startsWith("svc:")){
+    if(dev(id)||model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)||id.startsWith("svc:")||id.startsWith("plane:")){
       const bx=p.x+hw-4, by=p.y-hh+10, ex=bx-22;
       selBadges+=`<g class="edit-badge" data-id="${id}" style="cursor:pointer"><title>Edit label</title>`
         +`<circle cx="${ex}" cy="${by}" r="9" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>`
@@ -529,8 +529,14 @@ function render(){
   const dr=document.getElementById("draw");                 // keep drawing layer aligned with topology
   dr.setAttribute("width",zW); dr.setAttribute("height",zH); dr.setAttribute("viewBox",`${minX} ${minY} ${W} ${H}`);
   bindDrag(document.getElementById("topo"));
-  refreshUI(); updateZoomUI();
+  refreshUI(); updateZoomUI(); saveModel();
 }
+/* ---- auto-save to browser ---- */
+const LS_KEY="sdwan_topology_v1"; let saveTimer=0;
+function saveModel(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>{
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(model)); }catch(e){} },250); }
+function loadModel(){ try{ const s=localStorage.getItem(LS_KEY); if(s){ const m=JSON.parse(s);
+  if(m&&Array.isArray(m.devices)&&m.mgmt&&Array.isArray(m.mgmt.planes)) return m; } }catch(e){} return null; }
 
 /* ================= DRAG / SELECT / MARQUEE ============================= */
 let drag=null, raf=0, winBound=false;
@@ -608,6 +614,7 @@ function updateMarquee(e){
 function endMarquee(){ if(!marquee) return; marquee.div.remove(); marquee=null; render(); }
 function clearSelection(){ if(selected.size||selectedLink){ selected=new Set(); selectedLink=null; render(); } }
 function editSelectedEntity(id){
+  if(id.startsWith("plane:")){ const pl=model.mgmt.planes.find(p=>"plane:"+p.id===id); if(pl){ const n=prompt("Plane name:",pl.label); if(n!==null){ pushUndo(); pl.label=n.trim()||pl.label; render(); } } return; }
   if(id.startsWith("svc:")){ const r=svcRef(id); if(r) editService(r.pl.id,r.i); return; }
   if(dev(id)) editDevice(id);
   else if(model.subnets.some(s=>s.id===id)) editSubnet(id);
@@ -615,7 +622,12 @@ function editSelectedEntity(id){
 }
 function deleteSelectedEntity(id){
   pushUndo();
-  if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
+  if(id.startsWith("plane:")){ const pid=id.slice(6), pl=model.mgmt.planes.find(p=>p.id===pid);
+    if(pl){ const svcIds=new Set(pl.services.map(s=>"svc:"+s.id));
+      model.links=model.links.filter(l=>!svcIds.has(l.from)&&!svcIds.has(l.to));
+      model.clouds=model.clouds.filter(c=>!svcIds.has(c.anchor));
+      model.mgmt.planes=model.mgmt.planes.filter(p=>p.id!==pid); }
+  } else if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
     model.links=model.links.filter(l=>l.from!==id&&l.to!==id); model.clouds=model.clouds.filter(c=>c.anchor!==id);
   } else if(dev(id)){                                       // device -> also drop its links/subnets/clouds
     model.devices=model.devices.filter(x=>x.id!==id);
@@ -1087,7 +1099,12 @@ window.addEventListener("keydown",e=>{
   if(e.key==="Delete"||e.key==="Backspace"){
     if(selectedLink){ e.preventDefault(); delLink(selectedLink); return; }
     if(selected.size){ e.preventDefault(); pushUndo(); [...selected].forEach(id=>{
-      if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
+      if(id.startsWith("plane:")){ const pid=id.slice(6), pl=model.mgmt.planes.find(p=>p.id===pid);
+        if(pl){ const svcIds=new Set(pl.services.map(s=>"svc:"+s.id));
+          model.links=model.links.filter(l=>!svcIds.has(l.from)&&!svcIds.has(l.to));
+          model.clouds=model.clouds.filter(c=>!svcIds.has(c.anchor));
+          model.mgmt.planes=model.mgmt.planes.filter(p=>p.id!==pid); } }
+      else if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
         model.links=model.links.filter(l=>l.from!==id&&l.to!==id); model.clouds=model.clouds.filter(c=>c.anchor!==id); }
       else if(dev(id)){ model.devices=model.devices.filter(x=>x.id!==id);
         model.links=model.links.filter(l=>l.from!==id&&l.to!==id);
@@ -1104,6 +1121,7 @@ window.addEventListener("keydown",e=>{
 
 buildResources();
 buildPalette();
+const _saved=loadModel(); if(_saved) model=_saved;   // restore last session
 render();
 initDraw();
 initResize();
