@@ -21,8 +21,8 @@
   .gutter{flex:0 0 6px;cursor:col-resize;background:#eef0f2;transition:background .15s}
   .gutter:hover,.gutter.dragging{background:#c7ccd4}
   .canvas-wrap{flex:1;min-width:0;position:relative;display:flex}
-  .canvas{flex:1;overflow:auto;background:#fff;position:relative;display:flex}
-  #stage{position:relative;margin:auto}
+  .canvas{flex:1;overflow:auto;background:#fff;position:relative}
+  #stage{position:relative;display:inline-block;margin:600px}
   .marquee{position:absolute;border:1.5px dashed #2563eb;background:rgba(37,99,235,.08);pointer-events:none;z-index:5}
   .zoom-bar{position:absolute;right:12px;bottom:12px;z-index:20;display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:4px;box-shadow:0 2px 8px rgba(16,24,40,.12)}
   .zoom-bar button{width:30px;height:28px;background:#f3f4f6;color:#1f2937;font-size:14px;font-weight:600;padding:0}
@@ -897,11 +897,11 @@ function cycleProvider(id){ const c=model.clouds.find(x=>x.id===id); if(!c) retu
   c.provider=order[(order.indexOf(c.provider)+1)%order.length]; render(); }
 function delCloud(id){ pushUndo(); model.clouds=model.clouds.filter(c=>c.id!==id); render(); }
 
-function resetModel(){ pushUndo(); model=referenceModel(); render(); }
+function resetModel(){ pushUndo(); model=referenceModel(); render(); centerScroll(); }
 function blankModel(){ return {devices:[],links:[],subnets:[],clouds:[],
   mgmt:{planes:[{id:"mp",label:"Management Plane",services:[]},{id:"cdp",label:"Control and Data Plane",services:[]}]}}; }
 function clearCanvas(){ if(!confirm("Clear the canvas? This removes all devices and connections.")) return;
-  pushUndo(); model=blankModel(); render(); }
+  pushUndo(); model=blankModel(); render(); centerScroll(); }
 
 /* ================= EXPORTS ============================================= */
 function download(name,text){ const b=new Blob([text],{type:"application/json"});
@@ -1022,11 +1022,12 @@ let zoom=1, lastBounds=null;
 function updateZoomUI(){ const el=document.getElementById("zoom-pct"); if(el) el.textContent=Math.round(zoom*100)+"%"; }
 function zoomBy(f){ zoom=Math.max(0.15,Math.min(4,zoom*f)); render(); }
 function zoomReset(){ zoom=1; render(); }
+function centerScroll(){ const c=document.querySelector(".canvas"); if(!c) return;
+  c.scrollLeft=(c.scrollWidth-c.clientWidth)/2; c.scrollTop=(c.scrollHeight-c.clientHeight)/2; }
 function fitToScreen(){
   if(!lastBounds) return; const c=document.querySelector(".canvas"); if(!c) return;
   const pad=48, z=Math.min((c.clientWidth-pad)/lastBounds.W,(c.clientHeight-pad)/lastBounds.H);
-  zoom=Math.max(0.15,Math.min(4,z)); render();
-  c.scrollLeft=(c.scrollWidth-c.clientWidth)/2; c.scrollTop=(c.scrollHeight-c.clientHeight)/2;
+  zoom=Math.max(0.15,Math.min(4,z)); render(); centerScroll();
 }
 
 /* ================= UNDO / REDO ======================================== */
@@ -1089,7 +1090,7 @@ const TEMPLATES={
 function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
   document.getElementById("tpl-menu")?.classList.remove("open");
   if(model.devices.length && !confirm("Replace the current canvas with the "+t.label+" template?")) return;
-  pushUndo(); model=t.build(); selected=new Set(); zoom=1; render(); }
+  pushUndo(); model=t.build(); selected=new Set(); zoom=1; render(); centerScroll(); }
 function toggleTemplates(e){ e.stopPropagation(); document.getElementById("tpl-menu").classList.toggle("open"); }
 document.addEventListener("click",()=>document.getElementById("tpl-menu")?.classList.remove("open"));
 
@@ -1126,6 +1127,7 @@ render();
 initDraw();
 initResize();
 updateHistUI();
+requestAnimationFrame(centerScroll);                  // center the pannable canvas on load
 </script>
 </body>
 </html>
