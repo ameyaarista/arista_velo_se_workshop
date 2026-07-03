@@ -135,36 +135,11 @@
       </div>
       <label>Host subnet CIDR (optional)</label>
       <input id="d-cidr" placeholder="10.0.1.0/24">
-      <label>Connect to (optional)</label>
-      <div class="row">
-        <select id="d-connto"></select>
-        <select id="d-conntr">
-          <option value="sdwan">SD-WAN</option>
-          <option value="ipsec">IPsec</option>
-          <option value="direct">Direct</option>
-        </select>
-      </div>
       <div class="row">
         <button class="btn hub" onclick="addDevice('hub')">+ Add hub</button>
         <button class="btn spoke" onclick="addDevice('spoke')">+ Add spoke</button>
       </div>
       <button class="btn cluster" onclick="addDevice('cluster')">+ Add cluster</button>
-    </div>
-
-    <div class="section">
-      <h2>Connect nodes</h2>
-      <div class="row">
-        <div><label>From</label><select id="c-from"></select></div>
-        <div><label>To</label><select id="c-to"></select></div>
-      </div>
-      <label>Transport</label>
-      <select id="c-tr">
-        <option value="sdwan">SD-WAN overlay</option>
-        <option value="ipsec">IPsec tunnel</option>
-        <option value="direct">Direct link</option>
-      </select>
-      <button class="btn link" onclick="addLink()">+ Connect</button>
-      <ul class="links" id="link-list"></ul>
     </div>
 
     <div class="section" id="suggest-section" style="display:none">
@@ -606,17 +581,7 @@ function initDraw(){ const dr=document.getElementById("draw"); if(!dr) return;
 /* ================= EDIT ACTIONS ======================================= */
 function opts(list,ph){ return (ph?`<option value="">${ph}</option>`:"")+list.map(d=>`<option value="${d.id}">${esc(d.label)}</option>`).join(""); }
 function refreshUI(){
-  const all=model.devices;
-  const vcgOpts=[]; model.mgmt.planes.forEach(pl=>pl.services.forEach(sv=>{ if(sv.type==="vcg") vcgOpts.push(`<option value="svc:${sv.id}">${esc(sv.label)} (VCG)</option>`); }));
-  const gwGroup=vcgOpts.length?`<optgroup label="Gateways">${vcgOpts.join("")}</optgroup>`:"";
-  document.getElementById("d-connto").innerHTML=opts(all,"— none —")+gwGroup;
-  document.getElementById("c-from").innerHTML=opts(all)+gwGroup;   // any node ↔ gateway
-  document.getElementById("c-to").innerHTML=opts(all)+gwGroup;
   document.getElementById("m-plane").innerHTML=model.mgmt.planes.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join("");
-  document.getElementById("link-list").innerHTML=model.links.map(l=>{
-    const t=TR[linkStyleKey(l)]||TR.direct;
-    return `<li><span>${esc(anchorLabel(l.from))} → ${esc(anchorLabel(l.to))} <span class="tag" style="background:${t.c}">${t.t}</span></span><span class="x" onclick="delLink('${l.id}')">✕</span></li>`;
-  }).join("")||`<li style="color:#9ca3af">no links yet</li>`;
   renderElements();
   renderChecks();
   renderSuggestions();
@@ -714,8 +679,6 @@ function addDevice(kind){
   model.devices.push({id,kind,label:name,cloud});
   const cidr=document.getElementById("d-cidr").value.trim();
   if(cidr) model.subnets.push({id:uid("s"),anchor:id,cidr});
-  const to=document.getElementById("d-connto").value;
-  if(to) model.links.push({id:uid("l"),from:id,to,transport:document.getElementById("d-conntr").value});
   ["d-name","d-cidr"].forEach(i=>document.getElementById(i).value="");
   render();
 }
