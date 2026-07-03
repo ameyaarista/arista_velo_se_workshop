@@ -8,7 +8,7 @@
   :root{
     --hub:#57bf5b; --spoke:#2b9fd8; --subnet:#eaf4ff; --subnet-b:#2f80c9;
     --cloud:#fff4e0; --cloud-b:#e0a94b; --mgmt:#f4f4f4; --mgmt-b:#9aa0a6;
-    --sdwan:#159957; --ipsec:#d97706; --direct:#6b7280; --text:#1f2937;
+    --sdwan:#159957; --ipsec:#d97706; --direct:#6b7280; --interconnect:#7c3aed; --text:#1f2937;
   }
   *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   body{margin:0;background:#f7f8fa;color:var(--text)}
@@ -326,12 +326,15 @@ function computeGeometry(){
 
 /* ================= RENDER ============================================== */
 const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
-const TR={sdwan:{c:"var(--sdwan)",t:"SD-WAN",dash:""},ipsec:{c:"var(--ipsec)",t:"IPsec",dash:'stroke-dasharray="6 4"'},direct:{c:"var(--direct)",t:"Direct",dash:""}};
+const TR={sdwan:{c:"var(--sdwan)",t:"SD-WAN",dash:""},ipsec:{c:"var(--ipsec)",t:"IPsec",dash:'stroke-dasharray="6 4"'},direct:{c:"var(--direct)",t:"Direct",dash:""},interconnect:{c:"var(--interconnect)",t:"Interconnect",dash:""}};
+// hub-to-hub links are shown as "Interconnect" regardless of transport
+function linkStyleKey(l){ return (dev(l.from)?.kind==="hub" && dev(l.to)?.kind==="hub") ? "interconnect" : l.transport; }
 
 function linkLine(a,b,tr){
   const s=TR[tr]||TR.direct; const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+  const w=Math.max(60,s.t.length*5.6+14);
   return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${s.c}" stroke-width="2" ${s.dash}/>`
-    +`<rect x="${mx-30}" y="${my-9}" width="60" height="16" rx="8" fill="${s.c}"/>`
+    +`<rect x="${mx-w/2}" y="${my-9}" width="${w}" height="16" rx="8" fill="${s.c}"/>`
     +`<text x="${mx}" y="${my+3}" text-anchor="middle" font-size="9" fill="#fff">${s.t}</text>`;
 }
 // SD-WAN edge icon: colored disc + white router glyph (blue=spoke, green=hub)
@@ -423,7 +426,7 @@ function render(){
   const pos=computeGeometry();
   let s="";
   // links (under nodes)
-  model.links.forEach(l=>{ const a=pos[l.from],b=pos[l.to]; if(a&&b) s+=linkLine(a,b,l.transport); });
+  model.links.forEach(l=>{ const a=pos[l.from],b=pos[l.to]; if(a&&b) s+=linkLine(a,b,linkStyleKey(l)); });
   model.subnets.forEach(su=>{ const a=pos[su.anchor],p=pos[su.id]; if(a&&p) s+=linkLine(a,{x:p.x,y:p.y+(p.y<a.y?18:-18)},"direct").split("<rect")[0]; });
   model.clouds.forEach(c=>{ const a=pos[c.anchor],p=pos[c.id]; if(a&&p) s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${p.y+(p.y<a.y?26:-26)}" stroke="var(--cloud-b)" stroke-width="2"/>`; });
   // selection halos (under nodes)
@@ -563,7 +566,7 @@ function refreshUI(){
   document.getElementById("su-anchor").innerHTML=opts(all);
   document.getElementById("m-plane").innerHTML=model.mgmt.planes.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join("");
   document.getElementById("link-list").innerHTML=model.links.map(l=>{
-    const t=TR[l.transport]||TR.direct;
+    const t=TR[linkStyleKey(l)]||TR.direct;
     return `<li><span>${esc(dev(l.from)?.label||"?")} → ${esc(dev(l.to)?.label||"?")} <span class="tag" style="background:${t.c}">${t.t}</span></span><span class="x" onclick="delLink('${l.id}')">✕</span></li>`;
   }).join("")||`<li style="color:#9ca3af">no links yet</li>`;
   renderElements();
