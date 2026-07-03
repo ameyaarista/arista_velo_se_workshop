@@ -632,9 +632,10 @@ function editSelectedEntity(id){
 function deleteSelectedEntity(id){
   pushUndo();
   if(id.startsWith("plane:")){ const pid=id.slice(6), pl=model.mgmt.planes.find(p=>p.id===pid);
-    if(pl){ const others=model.mgmt.planes.filter(p=>p.id!==pid);
-      if(others.length) others[0].services.push(...pl.services);   // keep the gateways/VCOs
-      model.mgmt.planes=others; }
+    if(pl){ const svcIds=new Set(pl.services.map(s=>"svc:"+s.id));   // plane + its nodes go together
+      model.links=model.links.filter(l=>!svcIds.has(l.from)&&!svcIds.has(l.to));
+      model.clouds=model.clouds.filter(c=>!svcIds.has(c.anchor));
+      model.mgmt.planes=model.mgmt.planes.filter(p=>p.id!==pid); }
   } else if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
     model.links=model.links.filter(l=>l.from!==id&&l.to!==id); model.clouds=model.clouds.filter(c=>c.anchor!==id);
   } else if(dev(id)){                                       // device -> also drop its links/subnets/clouds
@@ -798,11 +799,17 @@ function addDevice(kind,cloud){
   model.devices.push({id:uid("d"),kind,label:name,cloud:cloud||undefined});
   render();
 }
+function ensurePlane(which){                              // find or create a plane; gateways -> cdp, others -> mp
+  const spec = which==="cdp"
+    ? {id:"cdp",label:"Control and Data Plane",re:/control.*data/i}
+    : {id:"mp",label:"Management Plane",re:/management/i};
+  let pl = model.mgmt.planes.find(p=>p.id===spec.id) || model.mgmt.planes.find(p=>spec.re.test(p.label));
+  if(!pl){ pl={id:spec.id,label:spec.label,services:[]}; model.mgmt.planes.push(pl); }
+  return pl;
+}
 function addMgmt(type){                                   // quick-add VCO / VCG from the palette
-  const pl = type==="vcg"
-    ? (plane("cdp")||model.mgmt.planes.find(p=>/control.*data/i.test(p.label))||model.mgmt.planes[0])
-    : (plane("mp")||model.mgmt.planes[0]);
-  if(!pl) return; pushUndo();
+  pushUndo();
+  const pl = type==="vcg" ? ensurePlane("cdp") : ensurePlane("mp");   // gateways NEVER go to the management plane
   const n=pl.services.filter(s=>s.type===type).length+1;
   pl.services.push({id:uid("sv"),label:(type==="vcg"?"GW":"VCO")+n,ip:"",type});
   render();
@@ -1120,9 +1127,10 @@ window.addEventListener("keydown",e=>{
     if(selectedLink){ e.preventDefault(); delLink(selectedLink); return; }
     if(selected.size){ e.preventDefault(); pushUndo(); [...selected].forEach(id=>{
       if(id.startsWith("plane:")){ const pid=id.slice(6), pl=model.mgmt.planes.find(p=>p.id===pid);
-        if(pl){ const others=model.mgmt.planes.filter(p=>p.id!==pid);
-          if(others.length) others[0].services.push(...pl.services);
-          model.mgmt.planes=others; } }
+        if(pl){ const svcIds=new Set(pl.services.map(s=>"svc:"+s.id));
+          model.links=model.links.filter(l=>!svcIds.has(l.from)&&!svcIds.has(l.to));
+          model.clouds=model.clouds.filter(c=>!svcIds.has(c.anchor));
+          model.mgmt.planes=model.mgmt.planes.filter(p=>p.id!==pid); } }
       else if(id.startsWith("svc:")){ const r=svcRef(id); if(r) r.pl.services.splice(r.i,1);
         model.links=model.links.filter(l=>l.from!==id&&l.to!==id); model.clouds=model.clouds.filter(c=>c.anchor!==id); }
       else if(dev(id)){ model.devices=model.devices.filter(x=>x.id!==id);
