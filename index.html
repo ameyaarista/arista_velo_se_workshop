@@ -1146,7 +1146,7 @@ function buildResources(){
     sec.items.map(([label,path])=>`<a href="${path.startsWith("http")?path:RES_BASE+path}" target="_blank" rel="noopener">${esc(label)}</a>`).join("")
   ).join("");
 }
-function toggleResources(e){ e.stopPropagation(); document.getElementById("res-menu").classList.toggle("open"); }
+function toggleResources(e){ e.stopPropagation(); document.getElementById("tpl-menu")?.classList.remove("open"); document.getElementById("res-menu").classList.toggle("open"); }
 document.addEventListener("click",()=>document.getElementById("res-menu")?.classList.remove("open"));
 
 /* ================= ZOOM / FIT ========================================= */
@@ -1256,7 +1256,7 @@ function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
   document.getElementById("tpl-menu")?.classList.remove("open");
   if(model.devices.length && !confirm("Replace the current canvas with the "+t.label+" template?")) return;
   pushUndo(); model=t.build(); selected=new Set(); zoom=1; world=null; render(); centerScroll(); }
-function toggleTemplates(e){ e.stopPropagation(); document.getElementById("tpl-menu").classList.toggle("open"); }
+function toggleTemplates(e){ e.stopPropagation(); document.getElementById("res-menu")?.classList.remove("open"); document.getElementById("tpl-menu").classList.toggle("open"); }
 document.addEventListener("click",()=>document.getElementById("tpl-menu")?.classList.remove("open"));
 
 window.addEventListener("keydown",e=>{
