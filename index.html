@@ -492,6 +492,7 @@ function normalizeMgmt(m){                                 // migrate legacy pla
 }
 function render(){
   normalizeMgmt(model);
+  const _pwX=world?world.minX:null, _pwY=world?world.minY:null;   // origin before this render (for scroll compensation)
   const pos=computeGeometry();
   let s="", linkBadges="";
   // links (under nodes) — wrapped so they can be selected & deleted
@@ -567,6 +568,10 @@ function render(){
   document.getElementById("topo-holder").innerHTML=`<svg id="topo" width="${zW}" height="${zH}" viewBox="${vX} ${vY} ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
   const dr=document.getElementById("draw");                 // keep drawing layer aligned with topology
   dr.setAttribute("width",zW); dr.setAttribute("height",zH); dr.setAttribute("viewBox",`${vX} ${vY} ${W} ${H}`);
+  // if the world grew left/up, shift scroll by the same amount so existing nodes stay visually put
+  if(_pwX!=null){ const c=document.querySelector(".canvas"); if(c){
+    if(world.minX<_pwX) c.scrollLeft+=(_pwX-world.minX)*zoom;
+    if(world.minY<_pwY) c.scrollTop+=(_pwY-world.minY)*zoom; } }
   bindDrag(document.getElementById("topo"));
   refreshUI(); updateZoomUI(); saveModel();
 }
