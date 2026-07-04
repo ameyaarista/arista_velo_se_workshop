@@ -216,12 +216,13 @@ function primaryHub(sp){                       // core node this spoke first con
 const G={startX:170,hubY:340,dxSpoke:180,spokeGap:190,hubGap:80,mgmtTop:80};
 function computeGeometry(){
   const pos={};
+  const pinned=d=>d&&d.x!=null&&d.y!=null;                  // pinned nodes are excluded from auto-layout
   const byHub={}; const orphan=[];
-  spokes().forEach(sp=>{ const h=primaryHub(sp); if(h){(byHub[h]=byHub[h]||[]).push(sp);} else orphan.push(sp); });
+  spokes().filter(s=>!pinned(s)).forEach(sp=>{ const h=primaryHub(sp); if(h&&!pinned(dev(h))){(byHub[h]=byHub[h]||[]).push(sp);} else orphan.push(sp); });
 
   // tiers: hubs in a middle row, all their spokes in a row below
   let cursor=G.startX;
-  hubs().forEach(h=>{
+  hubs().filter(h=>!pinned(h)).forEach(h=>{
     const grp=byHub[h.id]||[];
     const width=Math.max(1,grp.length)*G.dxSpoke;
     const hx=cursor+width/2;
@@ -231,10 +232,9 @@ function computeGeometry(){
   });
   // orphan leaves (not attached to a core) sit in the lower row on the left
   orphan.forEach((s,i)=>{ pos[s.id]={x:G.startX+i*G.dxSpoke, y:G.hubY+G.spokeGap, kind:s.kind, node:s}; });
-  if(hubs().length===0) spokes().forEach((s,i)=>{ if(!pos[s.id]) pos[s.id]={x:G.startX+i*G.dxSpoke,y:G.hubY+G.spokeGap,kind:s.kind,node:s}; });
-
-  // manual drag overrides win over auto-layout
-  model.devices.forEach(d=>{ if(d.x!=null&&d.y!=null&&pos[d.id]){pos[d.id].x=d.x;pos[d.id].y=d.y;} });
+  if(hubs().filter(h=>!pinned(h)).length===0) spokes().filter(s=>!pinned(s)).forEach((s,i)=>{ if(!pos[s.id]) pos[s.id]={x:G.startX+i*G.dxSpoke,y:G.hubY+G.spokeGap,kind:s.kind,node:s}; });
+  // pinned devices placed at their own coordinates (don't affect the rest)
+  model.devices.forEach(d=>{ if(pinned(d)) pos[d.id]={x:d.x,y:d.y,kind:d.kind,node:d}; });
 
   // management planes + their service nodes (top tier); positions stored so clouds can anchor to a VCG
   const shownPlanes=model.mgmt.planes;                     // boxes are independent objects
@@ -546,16 +546,20 @@ function render(){
     minY=Math.min(minY,p.y-hh); maxY=Math.max(maxY,p.y+hh); });
   if(!isFinite(minX)){ minX=0;minY=0;maxX=560;maxY=360; }
   minX-=30; minY-=30; maxX+=30; maxY+=40;
-  const W=maxX-minX, H=maxY-minY;
+  lastBounds={minX,minY,W:maxX-minX,H:maxY-minY};          // tight content bounds (for Fit)
+  // stable "world" viewBox: only grows, never shifts — so moving one node doesn't move the others
+  if(!world) world={minX,minY,maxX,maxY};
+  else { world.minX=Math.min(world.minX,minX); world.minY=Math.min(world.minY,minY);
+         world.maxX=Math.max(world.maxX,maxX); world.maxY=Math.max(world.maxY,maxY); }
+  const vX=world.minX, vY=world.minY, W=world.maxX-world.minX, H=world.maxY-world.minY;
   const hasContent = model.devices.length || model.subnets.length || model.clouds.length || (model.mgmt.services||[]).length || model.mgmt.planes.length;
   if(!hasContent)
-    s+=`<text x="${minX+W/2}" y="${minY+H/2-10}" text-anchor="middle" font-size="16" fill="#9ca3af">Blank canvas</text>`
-      +`<text x="${minX+W/2}" y="${minY+H/2+14}" text-anchor="middle" font-size="12" fill="#c0c4cc">Add a device from the left panel to begin</text>`;
-  lastBounds={minX,minY,W,H};
+    s+=`<text x="${vX+W/2}" y="${vY+H/2-10}" text-anchor="middle" font-size="16" fill="#9ca3af">Blank canvas</text>`
+      +`<text x="${vX+W/2}" y="${vY+H/2+14}" text-anchor="middle" font-size="12" fill="#c0c4cc">Add a device from the left panel to begin</text>`;
   const zW=W*zoom, zH=H*zoom;                               // pixel size scaled by zoom (viewBox stays in model units)
-  document.getElementById("topo-holder").innerHTML=`<svg id="topo" width="${zW}" height="${zH}" viewBox="${minX} ${minY} ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+  document.getElementById("topo-holder").innerHTML=`<svg id="topo" width="${zW}" height="${zH}" viewBox="${vX} ${vY} ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
   const dr=document.getElementById("draw");                 // keep drawing layer aligned with topology
-  dr.setAttribute("width",zW); dr.setAttribute("height",zH); dr.setAttribute("viewBox",`${minX} ${minY} ${W} ${H}`);
+  dr.setAttribute("width",zW); dr.setAttribute("height",zH); dr.setAttribute("viewBox",`${vX} ${vY} ${W} ${H}`);
   bindDrag(document.getElementById("topo"));
   refreshUI(); updateZoomUI(); saveModel();
 }
@@ -582,6 +586,12 @@ function selectableIds(){ return [
   ...model.devices.map(d=>d.id), ...model.subnets.map(s=>s.id),
   ...model.clouds.map(c=>c.id), ...model.mgmt.planes.map(p=>"plane:"+p.id),
   ...mgmtSvcs().map(s=>"svc:"+s.id) ]; }
+function freezeLayout(){                                  // pin every auto-positioned node so dragging one won't reflow others
+  const geo=computeGeometry();
+  model.devices.forEach(d=>{ if(d.x==null||d.y==null){ const g=geo[d.id]; if(g){d.x=g.x;d.y=g.y;} } });
+  mgmtSvcs().forEach(sv=>{ if(sv.x==null||sv.y==null){ const g=geo["svc:"+sv.id]; if(g){sv.x=g.x;sv.y=g.y;} } });
+  model.mgmt.planes.forEach(pl=>{ if(pl.x==null||pl.y==null){ const g=geo["plane:"+pl.id]; if(g){pl.x=g.x;pl.y=g.y;} } });
+}
 function bindDrag(svg){
   svg.addEventListener("pointerdown",e=>{
     const lbadge=e.target.closest(".link-del-badge");
@@ -596,6 +606,7 @@ function bindDrag(svg){
       const id=g.dataset.id;
       if(e.shiftKey){ selected.has(id)?selected.delete(id):selected.add(id); render(); return; }
       if(!selected.has(id)) selected=new Set([id]);       // fresh single selection
+      freezeLayout();                                     // lock arrangement so other nodes stay put
       const geo=computeGeometry(), start={};
       selected.forEach(sid=>{ const gp=geo[sid]; if(gp) start[sid]={x:gp.x,y:gp.y}; });
       drag={ids:[...selected], start, sx:e.clientX, sy:e.clientY};   // screen-space anchor (viewBox-independent)
@@ -807,11 +818,22 @@ function renderChecks(){ const el=document.getElementById("checks"); if(!el) ret
     : `<div class="chk ok">No issues found — topology looks clean.</div>`;
 }
 function uid(p){ return p+Math.random().toString(36).slice(2,7); }
+function viewCenterWorld(){                                 // world coords at the center of the visible canvas
+  const svg=document.getElementById("topo"), c=document.querySelector(".canvas");
+  if(!svg||!c||!svg.getScreenCTM) return {x:400,y:300};
+  const r=c.getBoundingClientRect(); const p=svg.createSVGPoint();
+  p.x=r.left+c.clientWidth/2; p.y=r.top+c.clientHeight/2;
+  const u=p.matrixTransform(svg.getScreenCTM().inverse());
+  return {x:Math.round(u.x), y:Math.round(u.y)};
+}
+let addSeq=0;
+function nextDropPos(){ const c=viewCenterWorld(), k=addSeq++; return {x:c.x+((k%4)*46-69), y:c.y+(Math.floor(k/4)%4)*46-46}; }
 function addDevice(kind,cloud){
   pushUndo();
   const base=({hub:"Hub",cluster:"Cluster",firewall:"FW",vwan:"vWAN",internet:"Internet",zscaler:"Zscaler",prisma:"Prisma",netskope:"Netskope"})[kind]||"Spoke";
   const name=base+(model.devices.filter(d=>d.kind===kind).length+1);
-  model.devices.push({id:uid("d"),kind,label:name,cloud:cloud||undefined});
+  const p=nextDropPos();
+  model.devices.push({id:uid("d"),kind,label:name,cloud:cloud||undefined,x:p.x,y:p.y});   // drop in current view
   render();
 }
 function ensurePlane(which){                              // find or create a plane; gateways -> cdp, others -> mp
@@ -824,13 +846,14 @@ function ensurePlane(which){                              // find or create a pl
 }
 function addMgmt(type){                                   // add a standalone VCO / VCG node (independent of boxes)
   pushUndo();
-  const n=mgmtSvcs().filter(s=>s.type===type).length+1;
-  mgmtSvcs().push({id:uid("sv"),label:(type==="vcg"?"GW":"VCO")+n,ip:"",type});
+  const n=mgmtSvcs().filter(s=>s.type===type).length+1, p=nextDropPos();
+  mgmtSvcs().push({id:uid("sv"),label:(type==="vcg"?"GW":"VCO")+n,ip:"",type,x:p.x,y:p.y});
   render();
 }
 function addPlaneBox(which){                              // add a standalone plane box
   pushUndo();
-  model.mgmt.planes.push({id:uid("pl"),label:which==="cdp"?"Control and Data Plane":"Management Plane",services:[]});
+  const c=viewCenterWorld();
+  model.mgmt.planes.push({id:uid("pl"),label:which==="cdp"?"Control and Data Plane":"Management Plane",services:[],x:c.x,y:c.y});
   render();
 }
 function paletteSvg(vb,inner,w){ return `<svg viewBox="${vb}" width="${w||30}">${inner}</svg>`; }
@@ -947,10 +970,10 @@ function cycleProvider(id){ const c=model.clouds.find(x=>x.id===id); if(!c) retu
   c.provider=order[(order.indexOf(c.provider)+1)%order.length]; render(); }
 function delCloud(id){ pushUndo(); model.clouds=model.clouds.filter(c=>c.id!==id); render(); }
 
-function resetModel(){ pushUndo(); model=TEMPLATES.multiregion.build(); selected=new Set(); zoom=1; render(); centerScroll(); }
+function resetModel(){ pushUndo(); model=TEMPLATES.multiregion.build(); selected=new Set(); zoom=1; world=null; render(); centerScroll(); }
 function blankModel(){ return {devices:[],links:[],subnets:[],clouds:[],mgmt:{planes:[],services:[]}}; }
 function clearCanvas(){ if(!confirm("Clear the canvas? This removes all devices and connections.")) return;
-  pushUndo(); model=blankModel(); render(); centerScroll(); }
+  pushUndo(); model=blankModel(); world=null; render(); centerScroll(); }
 
 /* ================= EXPORTS ============================================= */
 function download(name,text){ const b=new Blob([text],{type:"application/json"});
@@ -1072,16 +1095,17 @@ function toggleResources(e){ e.stopPropagation(); document.getElementById("res-m
 document.addEventListener("click",()=>document.getElementById("res-menu")?.classList.remove("open"));
 
 /* ================= ZOOM / FIT ========================================= */
-let zoom=1, lastBounds=null;
+let zoom=1, lastBounds=null, world=null;
 function updateZoomUI(){ const el=document.getElementById("zoom-pct"); if(el) el.textContent=Math.round(zoom*100)+"%"; }
 function zoomBy(f){ zoom=Math.max(0.15,Math.min(4,zoom*f)); render(); }
 function zoomReset(){ zoom=1; render(); }
 function centerScroll(){ const c=document.querySelector(".canvas"); if(!c) return;
   c.scrollLeft=(c.scrollWidth-c.clientWidth)/2; c.scrollTop=(c.scrollHeight-c.clientHeight)/2; }
 function fitToScreen(){
+  world=null; render();                                    // recompute tight bounds
   if(!lastBounds) return; const c=document.querySelector(".canvas"); if(!c) return;
   const pad=48, z=Math.min((c.clientWidth-pad)/lastBounds.W,(c.clientHeight-pad)/lastBounds.H);
-  zoom=Math.max(0.15,Math.min(4,z)); render(); centerScroll();
+  zoom=Math.max(0.15,Math.min(4,z)); world=null; render(); centerScroll();
 }
 
 /* ================= UNDO / REDO ======================================== */
@@ -1144,7 +1168,7 @@ const TEMPLATES={
 function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
   document.getElementById("tpl-menu")?.classList.remove("open");
   if(model.devices.length && !confirm("Replace the current canvas with the "+t.label+" template?")) return;
-  pushUndo(); model=t.build(); selected=new Set(); zoom=1; render(); centerScroll(); }
+  pushUndo(); model=t.build(); selected=new Set(); zoom=1; world=null; render(); centerScroll(); }
 function toggleTemplates(e){ e.stopPropagation(); document.getElementById("tpl-menu").classList.toggle("open"); }
 document.addEventListener("click",()=>document.getElementById("tpl-menu")?.classList.remove("open"));
 
