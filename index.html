@@ -214,6 +214,22 @@ function primaryHub(sp){                       // core node this spoke first con
 }
 
 /* ================= LAYOUT — hub-and-spoke (ELK/dagre in prod) ========== */
+// order a set of nodes so that connected ones are adjacent (chain traversal) -> fewer edges crossing through nodes
+function orderByAdjacency(nodes, links){
+  if(nodes.length<3) return nodes;
+  const ids=new Set(nodes.map(n=>n.id)), adj={};
+  nodes.forEach(n=>adj[n.id]=[]);
+  links.forEach(l=>{ if(ids.has(l.from)&&ids.has(l.to)){ adj[l.from].push(l.to); adj[l.to].push(l.from); } });
+  const byId={}; nodes.forEach(n=>byId[n.id]=n);
+  const seen=new Set(), order=[];
+  const starts=nodes.slice().sort((a,b)=>adj[a.id].length-adj[b.id].length);   // chain ends first
+  starts.forEach(root=>{ if(seen.has(root.id)) return;
+    const stack=[root.id];
+    while(stack.length){ const id=stack.pop(); if(seen.has(id)) continue; seen.add(id); order.push(byId[id]);
+      adj[id].filter(x=>!seen.has(x)).sort((a,b)=>adj[a].length-adj[b].length).forEach(x=>stack.push(x)); } });
+  return order;
+}
+
 const G={startX:170,hubY:340,dxSpoke:180,spokeGap:190,hubGap:80,mgmtTop:80};
 function computeGeometry(){
   const pos={};
@@ -231,8 +247,8 @@ function computeGeometry(){
     grp.forEach((s,i)=>{ pos[s.id]={x:hx-(grp.length-1)*G.dxSpoke/2+i*G.dxSpoke, y:G.hubY+G.spokeGap, kind:s.kind, node:s}; });
     cursor+=Math.max(width,180)+G.hubGap;
   });
-  // orphan leaves (not attached to a core) sit in the lower row on the left
-  orphan.forEach((s,i)=>{ pos[s.id]={x:G.startX+i*G.dxSpoke, y:G.hubY+G.spokeGap, kind:s.kind, node:s}; });
+  // orphan leaves (not attached to a core) sit in the lower row — ordered by connectivity so links don't cross through nodes
+  orderByAdjacency(orphan, model.links).forEach((s,i)=>{ pos[s.id]={x:G.startX+i*G.dxSpoke, y:G.hubY+G.spokeGap, kind:s.kind, node:s}; });
   if(hubs().filter(h=>!pinned(h)).length===0) spokes().filter(s=>!pinned(s)).forEach((s,i)=>{ if(!pos[s.id]) pos[s.id]={x:G.startX+i*G.dxSpoke,y:G.hubY+G.spokeGap,kind:s.kind,node:s}; });
   // pinned devices placed at their own coordinates (don't affect the rest)
   model.devices.forEach(d=>{ if(pinned(d)) pos[d.id]={x:d.x,y:d.y,kind:d.kind,node:d}; });
