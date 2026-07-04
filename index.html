@@ -102,6 +102,7 @@
         <a href="#" onclick="applyTemplate('multiregion');return false">Multi-Region</a>
         <a href="#" onclick="applyTemplate('fivesite');return false">5-Site (2 hubs, 3 spokes)</a>
         <a href="#" onclick="applyTemplate('threesite');return false">3-Site (1 hub, 2 spokes)</a>
+        <a href="#" onclick="applyTemplate('nsdvedge');return false">NSDvEdge</a>
       </div>
     </div>
     <div class="dropdown">
@@ -1213,6 +1214,22 @@ const TEMPLATES={
     const devices=[{id:hub[0],kind:"hub",label:hub[1]},...spokes.map(([id,label])=>({id,kind:"spoke",label}))];
     const links=spokes.map(([sid],i)=>({id:"l"+i,from:sid,to:hub[0],transport:"sdwan"}));
     return {devices,links,subnets:[],clouds:[],mgmt:mgmtWithGateways([["gSIN","VCG-SIN"],["gSYD","VCG-SYD"]])};
+  }},
+  nsdvedge:{ label:"NSDvEdge", build(){
+    const devices=[
+      {id:"hSYD",kind:"hub",label:"Sydney Hub"},
+      {id:"sSYD",kind:"spoke",label:"Sydney Spoke"},
+      {id:"sMEL",kind:"spoke",label:"Melbourne Spoke"},
+      {id:"zSYD",kind:"zscaler",label:"Zscaler Sydney"},
+      {id:"zMEL",kind:"zscaler",label:"Zscaler Melbourne"},
+    ];
+    const links=[
+      {id:"l1",from:"sSYD",to:"hSYD",transport:"sdwan"},   // all spokes -> all hubs
+      {id:"l2",from:"sMEL",to:"hSYD",transport:"sdwan"},
+      {id:"l3",from:"sSYD",to:"zSYD",transport:"sdwan"},   // spoke -> its Zscaler
+      {id:"l4",from:"sMEL",to:"zMEL",transport:"sdwan"},
+    ];
+    return {devices,links,subnets:[],clouds:[],mgmt:{planes:[],services:[]}};
   }}
 };
 function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
