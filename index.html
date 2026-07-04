@@ -270,6 +270,9 @@ function epKind(id){ if(id&&id.startsWith("svc:")){ const sv=entity(id); return 
 // gateway <-> SSE / firewall links are IPsec
 function isIpsecPair(a,b){ const ka=epKind(a), kb=epKind(b), sf=k=>k==="firewall"||k==="zscaler"||k==="prisma"||k==="netskope";
   return (ka==="gateway"&&sf(kb))||(kb==="gateway"&&sf(ka)); }
+// SSE <-> Internet links are drawn plain (no transport label)
+function isNoLabelPair(a,b){ const ka=epKind(a), kb=epKind(b), sse=k=>k==="zscaler"||k==="prisma"||k==="netskope";
+  return (sse(ka)&&kb==="internet")||(sse(kb)&&ka==="internet"); }
 // links between two core nodes (hub↔hub, cluster↔cluster, hub↔cluster) are shown as "Interconnect"
 function linkStyleKey(l){
   if(isCore(dev(l.from)?.kind) && isCore(dev(l.to)?.kind)) return "interconnect";
@@ -501,7 +504,9 @@ function render(){
     s+=`<g class="link" data-lid="${l.id}" style="cursor:pointer">`;
     if(sel) s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#2563eb" stroke-width="7" opacity="0.30"/>`;
     s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="transparent" stroke-width="14"/>`;   // click target
-    s+=linkLine(a,b,linkStyleKey(l))+`</g>`;
+    s+=(isNoLabelPair(l.from,l.to)
+        ? `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--direct)" stroke-width="2"/>`   // plain, unlabeled
+        : linkLine(a,b,linkStyleKey(l)))+`</g>`;
     if(sel){ const by=my-20;
       linkBadges+=`<g class="link-del-badge" data-lid="${l.id}" style="cursor:pointer"><title>Delete connection</title>`
         +`<circle cx="${mx}" cy="${by}" r="9" fill="#dc2626" stroke="#fff" stroke-width="1.5"/>`
