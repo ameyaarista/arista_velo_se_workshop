@@ -265,8 +265,17 @@ function computeGeometry(){
 /* ================= RENDER ============================================== */
 const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 const TR={sdwan:{c:"var(--sdwan)",t:"SD-WAN",dash:""},ipsec:{c:"var(--ipsec)",t:"IPsec",dash:'stroke-dasharray="6 4"'},direct:{c:"var(--direct)",t:"Direct",dash:""},interconnect:{c:"var(--interconnect)",t:"Interconnect",dash:""}};
+// endpoint kind: device kind, or "gateway" for a VCG service
+function epKind(id){ if(id&&id.startsWith("svc:")){ const sv=entity(id); return sv&&sv.type==="vcg"?"gateway":null; } return dev(id)?.kind; }
+// gateway <-> SSE / firewall links are IPsec
+function isIpsecPair(a,b){ const ka=epKind(a), kb=epKind(b), sf=k=>k==="firewall"||k==="zscaler"||k==="prisma"||k==="netskope";
+  return (ka==="gateway"&&sf(kb))||(kb==="gateway"&&sf(ka)); }
 // links between two core nodes (hub↔hub, cluster↔cluster, hub↔cluster) are shown as "Interconnect"
-function linkStyleKey(l){ return (isCore(dev(l.from)?.kind) && isCore(dev(l.to)?.kind)) ? "interconnect" : l.transport; }
+function linkStyleKey(l){
+  if(isCore(dev(l.from)?.kind) && isCore(dev(l.to)?.kind)) return "interconnect";
+  if(isIpsecPair(l.from,l.to)) return "ipsec";
+  return l.transport;
+}
 
 function linkLine(a,b,tr){
   const s=TR[tr]||TR.direct; const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
@@ -811,7 +820,7 @@ function canConnectDevices(a,b){                          // cloud-aware pairing
   }
   return canConnectKinds(a.kind,b.kind);
 }
-function connectSuggested(a,b){ pushUndo(); model.links.push({id:uid("l"),from:a,to:b,transport:"sdwan"}); render(); }
+function connectSuggested(a,b){ pushUndo(); model.links.push({id:uid("l"),from:a,to:b,transport:isIpsecPair(a,b)?"ipsec":"sdwan"}); render(); }
 function addSuggestedSubnet(id){ pushUndo(); model.subnets.push({id:uid("s"),anchor:id,cidr:nextSubnetCidr()}); render(); }
 function renderChecks(){ const el=document.getElementById("checks"); if(!el) return;
   const issues=runChecks();
