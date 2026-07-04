@@ -231,36 +231,37 @@ function orderByAdjacency(nodes, links){
 }
 
 const G={startX:170,hubY:340,dxSpoke:180,spokeGap:190,hubGap:80,mgmtTop:80};
+// tiered layout: 0 routers/switches (bottom) → 5 VCO (top)
+function nodeLayer(kind){
+  if(kind==="router"||kind==="switch") return 0;
+  if(kind==="spoke"||kind==="firewall") return 1;
+  if(kind==="hub"||kind==="cluster") return 2;            // includes AWS/Azure/GCP hubs
+  if(kind==="internet"||kind==="vwan") return 3;
+  if(kind==="zscaler"||kind==="prisma"||kind==="netskope") return 4;
+  return 1;
+}
+const LAYER_Y={0:820,1:660,2:500,3:340,4:200,5:60}, LDX=190, LCX=700;
 function computeGeometry(){
   const pos={};
-  const pinned=d=>d&&d.x!=null&&d.y!=null;                  // pinned nodes are excluded from auto-layout
-  const byHub={}; const orphan=[];
-  spokes().filter(s=>!pinned(s)).forEach(sp=>{ const h=primaryHub(sp); if(h&&!pinned(dev(h))){(byHub[h]=byHub[h]||[]).push(sp);} else orphan.push(sp); });
-
-  // tiers: hubs in a middle row, all their spokes in a row below
-  let cursor=G.startX;
-  hubs().filter(h=>!pinned(h)).forEach(h=>{
-    const grp=byHub[h.id]||[];
-    const width=Math.max(1,grp.length)*G.dxSpoke;
-    const hx=cursor+width/2;
-    pos[h.id]={x:hx,y:G.hubY,kind:h.kind,node:h};
-    grp.forEach((s,i)=>{ pos[s.id]={x:hx-(grp.length-1)*G.dxSpoke/2+i*G.dxSpoke, y:G.hubY+G.spokeGap, kind:s.kind, node:s}; });
-    cursor+=Math.max(width,180)+G.hubGap;
-  });
-  // orphan leaves (not attached to a core) sit in the lower row — ordered by connectivity so links don't cross through nodes
-  orderByAdjacency(orphan, model.links).forEach((s,i)=>{ pos[s.id]={x:G.startX+i*G.dxSpoke, y:G.hubY+G.spokeGap, kind:s.kind, node:s}; });
-  if(hubs().filter(h=>!pinned(h)).length===0) spokes().filter(s=>!pinned(s)).forEach((s,i)=>{ if(!pos[s.id]) pos[s.id]={x:G.startX+i*G.dxSpoke,y:G.hubY+G.spokeGap,kind:s.kind,node:s}; });
-  // pinned devices placed at their own coordinates (don't affect the rest)
-  model.devices.forEach(d=>{ if(pinned(d)) pos[d.id]={x:d.x,y:d.y,kind:d.kind,node:d}; });
-
-  // management service nodes (VCO/VCG) — standalone, laid out in a row along the top
-  const svcs=model.mgmt.services||[];
-  const devXs=model.devices.map(d=>pos[d.id]?.x).filter(v=>v!=null);
-  const spanC=devXs.length?(Math.min(...devXs)+Math.max(...devXs))/2:400;
-  svcs.forEach((sv,i)=>{
-    let sx=spanC-(svcs.length-1)*50+i*100, sy=G.mgmtTop+16;
-    if(sv.x!=null&&sv.y!=null){ sx=sv.x; sy=sv.y; }         // drag override
-    pos["svc:"+sv.id]={x:sx,y:sy,ptype:"svc",svc:sv}; });
+  const pinned=n=>n&&n.x!=null&&n.y!=null;
+  const posX={};
+  // pinned nodes first (fixed anchors, also used as barycenter references)
+  model.devices.forEach(d=>{ if(pinned(d)){ pos[d.id]={x:d.x,y:d.y,kind:d.kind,node:d}; posX[d.id]=d.x; } });
+  (model.mgmt.services||[]).forEach(sv=>{ if(pinned(sv)){ pos["svc:"+sv.id]={x:sv.x,y:sv.y,ptype:"svc",svc:sv}; posX["svc:"+sv.id]=sv.x; } });
+  // bucket unpinned nodes into layers
+  const layers={};
+  model.devices.forEach(d=>{ if(!pinned(d)){ const L=nodeLayer(d.kind); (layers[L]=layers[L]||[]).push({id:d.id,kind:d.kind,node:d}); } });
+  (model.mgmt.services||[]).forEach(sv=>{ if(!pinned(sv)){ const L=sv.type==="vcg"?3:5; (layers[L]=layers[L]||[]).push({id:"svc:"+sv.id,svc:sv}); } });
+  // adjacency for barycenter ordering
+  const nbr={}; model.links.forEach(l=>{ (nbr[l.from]=nbr[l.from]||[]).push(l.to); (nbr[l.to]=nbr[l.to]||[]).push(l.from); });
+  const placeLayer=L=>{ const arr=layers[L]; if(!arr||!arr.length) return;
+    arr.forEach(nd=>{ let sum=0,c=0; (nbr[nd.id]||[]).forEach(o=>{ if(posX[o]!=null){sum+=posX[o];c++;} }); nd._b=c?sum/c:LCX; });
+    arr.sort((a,b)=>a._b-b._b);
+    const n=arr.length;
+    arr.forEach((nd,i)=>{ const x=LCX-(n-1)*LDX/2+i*LDX, y=LAYER_Y[L]; posX[nd.id]=x;
+      pos[nd.id]= nd.svc ? {x,y,ptype:"svc",svc:nd.svc} : {x,y,kind:nd.kind,node:nd.node}; }); };
+  // place from the hub tier outward so each layer aligns to the already-placed neighbours
+  [2,1,3,0,4,5].forEach(placeLayer);
 
   // attach subnets/clouds on the side of a device AWAY from its links (avoids overlap)
   const off={};
