@@ -528,6 +528,10 @@ function normalizeMgmt(m){                                 // migrate legacy pla
   m.mgmt.planes=[];                                        // management / control plane boxes removed entirely
   return m;
 }
+function scaleOf(p){ return (p&&((p.node&&p.node.scale)||(p.svc&&p.svc.scale)))||1; }
+function nodeGroup(id,p,inner){ const k=scaleOf(p);
+  const tf=k!==1?` transform="translate(${p.x} ${p.y}) scale(${k}) translate(${-p.x} ${-p.y})"`:"";
+  return `<g class="node" data-id="${id}" style="cursor:grab"${tf}>${inner}</g>`; }
 function render(){
   normalizeMgmt(model);
   const _pwX=world?world.minX:null, _pwY=world?world.minY:null;   // origin before this render (for scroll compensation)
@@ -552,11 +556,18 @@ function render(){
   model.clouds.forEach(c=>{ const a=pos[c.anchor],p=pos[c.id]; if(a&&p) s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${p.y+(p.y<a.y?26:-26)}" stroke="var(--cloud-b)" stroke-width="2"/>`; });
   // selection halos (under nodes) + delete badges (collected, drawn on top)
   let selBadges="";
+  const single=selected.size===1;
   selected.forEach(id=>{ const p=pos[id]; if(!p) return;
+    const k=scaleOf(p);
     const txtHW=p.ptype==="text"?Math.max(30,(p.node.text||"Text").length*(p.node.size||16)*0.31)+8:0;
-    const hw=p.ptype==="plane"?p.mW/2+8:p.ptype==="text"?txtHW:p.ptype==="svc"?32:p.ptype==="cloud"?86:(p.kind==="cluster"?74:p.kind?50:64);
-    const hh=p.ptype==="plane"?p.mH/2+8:p.ptype==="text"?((p.node.size||16)+8):p.ptype==="svc"?44:p.ptype==="cloud"?38:(p.kind==="cluster"?46:p.kind?52:24);
+    let hw=p.ptype==="plane"?p.mW/2+8:p.ptype==="text"?txtHW:p.ptype==="svc"?32:p.ptype==="cloud"?86:(p.kind==="cluster"?74:p.kind?50:64);
+    let hh=p.ptype==="plane"?p.mH/2+8:p.ptype==="text"?((p.node.size||16)+8):p.ptype==="svc"?44:p.ptype==="cloud"?38:(p.kind==="cluster"?46:p.kind?52:24);
+    hw*=k; hh*=k;                                          // selection box tracks the node's scale
     s+=`<rect x="${p.x-hw}" y="${p.y-hh}" width="${hw*2}" height="${hh*2}" rx="10" fill="rgba(37,99,235,.08)" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="5 3"/>`;
+    if(single && p.ptype!=="plane"){                       // resize handle (bottom-right)
+      selBadges+=`<g class="resize-handle" data-id="${id}" style="cursor:nwse-resize"><title>Drag to resize</title>`
+        +`<rect x="${p.x+hw-6}" y="${p.y+hh-6}" width="12" height="12" rx="2" fill="#2563eb" stroke="#fff" stroke-width="1.5"/></g>`;
+    }
     if(dev(id)||model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)||id.startsWith("svc:")||id.startsWith("plane:")||id.startsWith("text:")){
       const bx=p.x+hw-4, by=p.y-hh+10, ex=bx-22;
       selBadges+=`<g class="edit-badge" data-id="${id}" style="cursor:pointer"><title>Edit label</title>`
@@ -579,17 +590,17 @@ function render(){
       +`<line x1="${x-b}" y1="${sy+b/3}" x2="${x+b}" y2="${sy+b/3}" stroke="#fff" stroke-width="1.4"/>`; }
     mg+=`<text x="${x}" y="${sy+ir+12}" text-anchor="middle" font-size="9" font-weight="600" fill="#374151">${esc(sv.label)}</text>`
       +`<text x="${x}" y="${sy+ir+23}" text-anchor="middle" font-size="8" fill="#6b7280">${esc(sv.ip)}</text>`;
-    s+=`<g class="node" data-id="svc:${sv.id}" style="cursor:grab">${mg}</g>`;
+    s+=nodeGroup("svc:"+sv.id,S,mg);
   });
   // nodes on top — all draggable
-  model.subnets.forEach(su=>{ if(pos[su.id]) s+=`<g class="node" data-id="${su.id}" style="cursor:grab">${subnetNode(pos[su.id])}</g>`; });
-  model.clouds.forEach(c=>{ if(pos[c.id]) s+=`<g class="node" data-id="${c.id}" style="cursor:grab">${cloudNode(pos[c.id])}</g>`; });
-  model.devices.forEach(d=>{ if(pos[d.id]) s+=`<g class="node" data-id="${d.id}" style="cursor:grab">${deviceNode(pos[d.id])}</g>`; });
+  model.subnets.forEach(su=>{ if(pos[su.id]) s+=nodeGroup(su.id,pos[su.id],subnetNode(pos[su.id])); });
+  model.clouds.forEach(c=>{ if(pos[c.id]) s+=nodeGroup(c.id,pos[c.id],cloudNode(pos[c.id])); });
+  model.devices.forEach(d=>{ if(pos[d.id]) s+=nodeGroup(d.id,pos[d.id],deviceNode(pos[d.id])); });
   (model.texts||[]).forEach(t=>{ const p=pos["text:"+t.id]; if(!p) return; const sz=t.size||16, txt=t.text||"Text";
     const w=Math.max(30,txt.length*sz*0.62);
-    s+=`<g class="node" data-id="text:${t.id}" style="cursor:grab">`
-      +`<rect x="${p.x-w/2}" y="${p.y-sz}" width="${w}" height="${sz*1.8}" fill="#000" opacity="0.001"/>`   // hit area
-      +`<text x="${p.x}" y="${p.y+sz*0.35}" text-anchor="middle" font-size="${sz}" font-weight="600" fill="#111827">${esc(txt)}</text></g>`; });
+    s+=nodeGroup("text:"+t.id,p,
+      `<rect x="${p.x-w/2}" y="${p.y-sz}" width="${w}" height="${sz*1.8}" fill="#000" opacity="0.001"/>`
+      +`<text x="${p.x}" y="${p.y+sz*0.35}" text-anchor="middle" font-size="${sz}" font-weight="600" fill="#111827">${esc(txt)}</text>`); });
   s+=selBadges+linkBadges;                                  // delete badges above everything
   // bounds -> viewBox (allows negative coords for clouds above planes)
   let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
@@ -634,6 +645,7 @@ let selected=new Set();      // ids of selected nodes (supports group move)
 let selectedLink=null;       // id of selected connection
 let marquee=null;            // active rubber-band selection
 let panning=null, spaceDown=false;   // Space/middle-drag to pan the canvas
+let resizing=null;                   // active node resize
 function svgPoint(svg,e){ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY;
   return p.matrixTransform(svg.getScreenCTM().inverse()); }
 function scheduleRender(){ if(raf) return; raf=requestAnimationFrame(()=>{raf=0;render();}); }
@@ -657,6 +669,9 @@ function bindDrag(svg){
     if(spaceDown || e.button===1){                        // pan: Space-drag or middle-mouse drag
       e.preventDefault(); const c=document.querySelector(".canvas");
       panning={sx:e.clientX,sy:e.clientY,sl:c.scrollLeft,st:c.scrollTop}; c.style.cursor="grabbing"; return; }
+    const rh=e.target.closest(".resize-handle");
+    if(rh){ e.preventDefault(); e.stopPropagation(); const id=rh.dataset.id, en=entity(id), gp=computeGeometry()[id];
+      if(en&&gp){ const loc=svgPoint(svg,e); resizing={id,cx:gp.x,cy:gp.y,startScale:en.scale||1,startDist:Math.max(1,Math.hypot(loc.x-gp.x,loc.y-gp.y))}; } return; }
     const lbadge=e.target.closest(".link-del-badge");
     if(lbadge){ e.preventDefault(); e.stopPropagation(); delLink(lbadge.dataset.lid); return; }
     const ebadge=e.target.closest(".edit-badge");
@@ -687,13 +702,16 @@ function bindDrag(svg){
   if(winBound) return; winBound=true;
   window.addEventListener("pointermove",e=>{
     if(panning){ const c=document.querySelector(".canvas"); if(c){ c.scrollLeft=panning.sl-(e.clientX-panning.sx); c.scrollTop=panning.st-(e.clientY-panning.sy); } return; }
+    if(resizing){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e);
+      let k=resizing.startScale*(Math.hypot(loc.x-resizing.cx,loc.y-resizing.cy)/resizing.startDist); k=Math.max(0.4,Math.min(3,k));
+      const en=entity(resizing.id); if(en){ if(!resizing.moved){resizing.moved=true; pushUndo();} en.scale=Math.round(k*100)/100; scheduleRender(); } return; }
     if(drag){ const dux=(e.clientX-drag.sx)/zoom, duy=(e.clientY-drag.sy)/zoom;   // screen delta ÷ zoom = stable user delta
       if(!drag.moved && (Math.abs(e.clientX-drag.sx)>2||Math.abs(e.clientY-drag.sy)>2)){ drag.moved=true; pushUndo(); }
       drag.ids.forEach(id=>{ const en=entity(id), s=drag.start[id]; if(en&&s){ en.x=s.x+dux; en.y=s.y+duy; } });
       scheduleRender(); return; }
     if(marquee) updateMarquee(e);
   });
-  window.addEventListener("pointerup",()=>{ if(panning){ const c=document.querySelector(".canvas"); if(c) c.style.cursor=spaceDown?"grab":""; panning=null; } if(marquee) endMarquee(); drag=null; });
+  window.addEventListener("pointerup",()=>{ if(panning){ const c=document.querySelector(".canvas"); if(c) c.style.cursor=spaceDown?"grab":""; panning=null; } resizing=null; if(marquee) endMarquee(); drag=null; });
 }
 function startMarquee(e){
   selectedLink=null;
