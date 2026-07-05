@@ -183,6 +183,14 @@
   <div class="gutter" data-target="panel-right" data-side="right" title="Drag to resize"></div>
 
   <aside class="panel right" id="panel-right">
+    <div class="section">
+      <h2>Bug Search</h2>
+      <div class="row">
+        <input id="bug-id" placeholder="bug-id (e.g. 1234567)" onkeydown="if(event.key==='Enter')openBug()">
+        <button class="btn sec" style="width:auto" onclick="openBug()">Open ↗</button>
+      </div>
+    </div>
+
     <div class="section" id="text-section" style="display:none">
       <h2>Text</h2>
       <label>Font size</label>
@@ -1251,6 +1259,8 @@ function addPlaneBox(which){                              // add a standalone pl
   render();
 }
 function toggleSnap(){ snapGrid=!snapGrid; const b=document.getElementById("tool-grid"); if(b) b.classList.toggle("act",snapGrid); }
+function openBug(){ const el=document.getElementById("bug-id"), v=(el&&el.value||"").trim(); if(!v) return;
+  window.open("https://bb.infra.corp.arista.io/bug/"+encodeURIComponent(v),"_blank","noopener"); }
 function addGroup(){                                      // add a labeled group/region container
   pushUndo(); const c=viewCenterWorld();
   const g={id:uid("gr"),label:"Group",x:c.x,y:c.y,w:340,h:230,color:"#6b7280"};
