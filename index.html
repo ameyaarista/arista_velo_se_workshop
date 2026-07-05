@@ -765,7 +765,9 @@ function bindDrag(svg){
       g.style.cursor="grabbing"; render(); e.preventDefault();
     } else {
       const lg=e.target.closest(".link");
-      if(lg){ e.preventDefault(); selectedLink=lg.dataset.lid; selected=new Set(); render(); return; } // select a connection
+      if(lg){ e.preventDefault(); const lid=lg.dataset.lid, now=Date.now();
+        if(lastTap && lastTap.id==="link:"+lid && now-lastTap.t<350){ lastTap=null; editLink(lid); return; }   // double-click = edit label
+        lastTap={id:"link:"+lid,t:now}; selectedLink=lid; selected=new Set(); render(); return; }
       if(!penColor) startMarquee(e);                       // empty canvas -> rubber-band
     }
   });
