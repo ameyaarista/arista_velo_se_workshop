@@ -519,10 +519,10 @@ function deviceNode(p){
     +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
 }
 function subnetNode(p){
-  const s=p.node;
-  return `<rect x="${p.x-58}" y="${p.y-17}" width="116" height="34" rx="5" fill="var(--subnet)" stroke="var(--subnet-b)"/>`
+  const s=p.node, stroke=s.color||"var(--subnet-b)";
+  return `<rect x="${p.x-58}" y="${p.y-17}" width="116" height="34" rx="5" fill="var(--subnet)" stroke="${stroke}" stroke-width="${s.color?2:1}"/>`
     +`<text x="${p.x}" y="${p.y-3}" text-anchor="middle" font-size="9" fill="#6b7280">subnet</text>`
-    +`<text x="${p.x}" y="${p.y+11}" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">${esc(s.cidr)}</text>`;
+    +`<text x="${p.x}" y="${p.y+11}" text-anchor="middle" font-size="11" font-weight="600" fill="${s.color||'#166534'}">${esc(s.cidr)}</text>`;
 }
 function providerMark(ix,iy,prov){
   if(prov==="aws") return `<text x="${ix}" y="${iy+2}" text-anchor="middle" font-size="14" font-weight="800" fill="#232f3e">aws</text>`
@@ -589,7 +589,7 @@ function render(){
     }
   });
   model.subnets.forEach(su=>{ const a=pos[su.anchor],p=pos[su.id]; if(a&&p){ const y2=p.y+(p.y<a.y?18:-18);
-    s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${y2}" stroke="var(--direct)" stroke-width="2"/>`; } });
+    s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${y2}" stroke="${su.color||'var(--direct)'}" stroke-width="2"/>`; } });
   model.clouds.forEach(c=>{ const a=pos[c.anchor],p=pos[c.id]; if(a&&p) s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${p.y+(p.y<a.y?26:-26)}" stroke="var(--cloud-b)" stroke-width="2"/>`; });
   // selection halos (under nodes) + delete badges (collected, drawn on top)
   let selBadges="";
@@ -605,7 +605,7 @@ function render(){
       selBadges+=`<g class="resize-handle" data-id="${id}" style="cursor:nwse-resize"><title>Drag to resize</title>`
         +`<rect x="${p.x+hw-6}" y="${p.y+hh-6}" width="12" height="12" rx="2" fill="#2563eb" stroke="#fff" stroke-width="1.5"/></g>`;
     }
-    if(single && (p.kind==="hub"||p.kind==="spoke"||p.kind==="cluster")){   // recolor SD-WAN device
+    if(single && (p.kind==="hub"||p.kind==="spoke"||p.kind==="cluster"||p.ptype==="subnet")){   // recolor device / subnet
       const cols=[["Green","#57bf5b"],["Blue","#2b9fd8"],["Gray","#9aa0a6"]], cyc=p.y+hh+16, sxx=p.x-(cols.length-1)*12;
       cols.forEach(([nm,col],i)=>{ const cx=sxx+i*24;
         selBadges+=`<g class="node-color" data-id="${id}" data-color="${col}" style="cursor:pointer"><title>${nm}</title>`
