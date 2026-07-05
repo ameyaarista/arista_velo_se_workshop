@@ -263,11 +263,14 @@ function computeGeometry(){
   (model.mgmt.services||[]).forEach(sv=>{ if(!pinned(sv)){ const L=sv.type==="vcg"?3:5; (layers[L]=layers[L]||[]).push({id:"svc:"+sv.id,svc:sv}); } });
   // adjacency for barycenter ordering
   const nbr={}; model.links.forEach(l=>{ (nbr[l.from]=nbr[l.from]||[]).push(l.to); (nbr[l.to]=nbr[l.to]||[]).push(l.from); });
+  // compact Y: only occupied tiers get a row, so empty layers leave no gap (lower layer index = lower on screen)
+  const occupied=Object.keys(layers).map(Number).sort((a,b)=>a-b), GAP=160, BASE=820, yFor={};
+  occupied.forEach((L,i)=>{ yFor[L]=BASE-i*GAP; });
   const placeLayer=L=>{ const arr=layers[L]; if(!arr||!arr.length) return;
     arr.forEach(nd=>{ let sum=0,c=0; (nbr[nd.id]||[]).forEach(o=>{ if(posX[o]!=null){sum+=posX[o];c++;} }); nd._b=c?sum/c:LCX; });
     arr.sort((a,b)=>a._b-b._b);
     const n=arr.length;
-    arr.forEach((nd,i)=>{ const x=LCX-(n-1)*LDX/2+i*LDX, y=LAYER_Y[L]; posX[nd.id]=x;
+    arr.forEach((nd,i)=>{ const x=LCX-(n-1)*LDX/2+i*LDX, y=yFor[L]; posX[nd.id]=x;
       pos[nd.id]= nd.svc ? {x,y,ptype:"svc",svc:nd.svc} : {x,y,kind:nd.kind,node:nd.node}; }); };
   // place from the hub tier outward so each layer aligns to the already-placed neighbours
   [2,1,1.5,3,0,4,5].forEach(placeLayer);
