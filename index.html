@@ -1064,9 +1064,15 @@ function addLink(){
 }
 function delLink(id){ pushUndo(); model.links=model.links.filter(l=>l.id!==id); if(selectedLink===id) selectedLink=null; render(); }
 function editLink(id){ const l=model.links.find(x=>x.id===id); if(!l) return;
-  const cur = l.label!=null ? l.label : (l.style||isNoLabelPair(l.from,l.to) ? "" : (TR[linkStyleKey(l)]||TR.direct).t);
-  const v=prompt("Connection label (leave blank for none):",cur); if(v===null) return;
-  pushUndo(); l.label=v; render(); }
+  const geo=computeGeometry(), a=geo[l.from], b=geo[l.to], svg=document.getElementById("topo"); if(!a||!b||!svg) return;
+  const pt=svg.createSVGPoint(); pt.x=(a.x+b.x)/2; pt.y=(a.y+b.y)/2; const sp=pt.matrixTransform(svg.getScreenCTM());
+  const cur=l.label!=null ? l.label : (l.style||isNoLabelPair(l.from,l.to) ? "" : (TR[linkStyleKey(l)]||TR.direct).t);
+  const inp=document.createElement("input"); inp.type="text"; inp.value=cur; inp.placeholder="label";
+  inp.style.cssText=`position:fixed;left:${sp.x-65}px;top:${sp.y-13}px;z-index:200;width:130px;font-size:12px;font-weight:600;text-align:center;padding:2px 6px;border:1px solid #2563eb;border-radius:5px;box-shadow:0 2px 8px rgba(0,0,0,.15)`;
+  document.body.appendChild(inp); inp.focus(); inp.select(); let done=false;
+  const finish=()=>{ if(done) return; done=true; pushUndo(); l.label=inp.value; inp.remove(); render(); };
+  inp.addEventListener("keydown",ev=>{ ev.stopPropagation(); if(ev.key==="Enter") finish(); else if(ev.key==="Escape"){ done=true; inp.remove(); } });
+  inp.addEventListener("blur",finish); }
 function addCloud(){
   const anchor=document.getElementById("cl-anchor").value; if(!anchor) return alert("Add a device first.");
   pushUndo();
