@@ -183,19 +183,25 @@
   <div class="gutter" data-target="panel-right" data-side="right" title="Drag to resize"></div>
 
   <aside class="panel right" id="panel-right">
-    <div class="section">
-      <h2>Bug Search</h2>
-      <div class="row">
-        <input id="bug-id" placeholder="bug-id (e.g. 1234567)" onkeydown="if(event.key==='Enter')openBug()">
-        <button class="btn sec" style="width:auto" onclick="openBug()">Open ↗</button>
+    <div class="section" style="padding:10px 12px">
+      <h2 style="margin:0 0 7px;display:flex;align-items:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="12" rx="4"/><path d="M12 6V4M9 9H4M9 13H3M9 17H4M15 9h5M15 13h6M15 17h5"/></svg>
+        Bug Search
+      </h2>
+      <div style="display:flex;gap:6px">
+        <input id="bug-id" placeholder="bug-id" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')openBug()">
+        <button class="btn sec" style="flex:0 0 34px;width:34px;padding:0" onclick="openBug()" title="Open bug"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
       </div>
     </div>
 
-    <div class="section">
-      <h2>Drive Search</h2>
-      <div class="row">
-        <input id="drive-q" placeholder="search Google Drive" onkeydown="if(event.key==='Enter')openDrive()">
-        <button class="btn sec" style="width:auto" onclick="openDrive()">Search ↗</button>
+    <div class="section" style="padding:10px 12px">
+      <h2 style="margin:0 0 7px;display:flex;align-items:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 87.3 78"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.6C.4 50 0 51.55 0 53.1h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L87.3 53.1c0-1.55-.4-3.1-1.2-4.5L59.85 53.1z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53.1H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5L60.75 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25l16.2 28.1H87.3c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+        GDrive Search
+      </h2>
+      <div style="display:flex;gap:6px">
+        <input id="drive-q" placeholder="search Google Drive" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')openDrive()">
+        <button class="btn sec" style="flex:0 0 34px;width:34px;padding:0" onclick="openDrive()" title="Search Drive"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
       </div>
     </div>
 
