@@ -810,7 +810,8 @@ function editNodeInline(id){                              // inline edit of a no
   let get,set;
   if(id.startsWith("text:")){ get=()=>en.text; set=v=>en.text=v||"Text"; }
   else if(id.startsWith("svc:")||dev(id)){ get=()=>en.label; set=v=>{ if(v) en.label=v; }; }
-  else { editSelectedEntity(id); return; }               // subnet/cloud/plane -> field editor
+  else if(model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)){ get=()=>en.cidr; set=v=>{ if(v) en.cidr=v; }; }  // edit CIDR
+  else { editSelectedEntity(id); return; }               // plane -> field editor
   const geo=computeGeometry(), p=geo[id], svg=document.getElementById("topo"); if(!p||!svg) return;
   const pt=svg.createSVGPoint(); pt.x=p.x; pt.y=p.y; const sp=pt.matrixTransform(svg.getScreenCTM());
   const inp=document.createElement("input"); inp.type="text"; inp.value=get();
