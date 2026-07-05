@@ -184,6 +184,15 @@
   <div class="gutter" data-target="panel-right" data-side="right" title="Drag to resize"></div>
 
   <aside class="panel right" id="panel-right">
+    <div class="section" id="text-section" style="display:none">
+      <h2>Text</h2>
+      <label>Font size</label>
+      <select id="text-size" onchange="setTextSize(this.value)">
+        <option>10</option><option>12</option><option>14</option><option>16</option><option>18</option>
+        <option>20</option><option>24</option><option>28</option><option>32</option><option>40</option><option>48</option><option>64</option>
+      </select>
+    </div>
+
     <div class="section" id="suggest-section" style="display:none">
       <h2>Suggested connections</h2>
       <div id="suggest"></div>
@@ -972,6 +981,7 @@ function refreshUI(){
   renderElements();
   renderChecks();
   renderSuggestions();
+  renderTextTools();
 }
 function anchorLabel(id){ if(id&&id.startsWith("svc:")){ for(const pl of model.mgmt.planes){ const s=pl.services.find(v=>"svc:"+v.id===id); if(s) return s.label+" (VCG)"; } return "?"; } return dev(id)?.label||"?"; }
 const SVCLABEL={vcg:"VCG",vco:"VCO",syslog:"other"};
@@ -1060,6 +1070,14 @@ function renderAlign(){
     +`<div class="grp">Distribute evenly</div>`
     +`<div class="row">${b("distH","Horizontal","Space evenly left→right")}${b("distV","Vertical","Space evenly top→bottom")}</div>`;
 }
+/* ---- font size for a selected text box ---- */
+function renderTextTools(){ const sec=document.getElementById("text-section"), sel=document.getElementById("text-size"); if(!sec) return;
+  const ids=[...selected], id=ids.length===1?ids[0]:null, t=(id&&id.startsWith("text:"))?entity(id):null;
+  if(!t){ sec.style.display="none"; return; }
+  sec.style.display=""; if(sel) sel.value=String(t.size||16);
+}
+function setTextSize(v){ const ids=[...selected]; if(ids.length!==1||!ids[0].startsWith("text:")) return;
+  const t=entity(ids[0]); if(!t) return; pushUndo(); t.size=parseInt(v,10)||16; render(); }
 /* ---- suggested connections for the selected device ---- */
 function renderSuggestions(){
   const sec=document.getElementById("suggest-section"), box=document.getElementById("suggest"); if(!sec) return;
