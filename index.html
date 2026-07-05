@@ -912,6 +912,11 @@ function bindDrag(svg){
       const c=document.querySelector(".canvas"); if(c) c.style.cursor="";
       placeTextAt(loc,e.clientX,e.clientY); return; }
     if(connectMode){                                       // connector tool: click nodes to connect, or drag on empty to draw a line
+      const fl=e.target.closest(".freeline");
+      if(fl){                                               // clicking an existing drawn line selects/edits it even while the tool is active
+        e.preventDefault(); const lid=fl.dataset.lid, now=Date.now();
+        if(lastTap && lastTap.id==="line:"+lid && now-lastTap.t<350){ lastTap=null; editFreeLine(lid); return; }
+        lastTap={id:"line:"+lid,t:now}; selectedLine=lid; selected=new Set(); selectedLink=null; render(); return; }
       e.preventDefault(); const gc=e.target.closest(".node");
       if(gc && (dev(gc.dataset.id)||gc.dataset.id.startsWith("svc:"))){ const id=gc.dataset.id;
         if(!connectFrom) connectFrom=id;
