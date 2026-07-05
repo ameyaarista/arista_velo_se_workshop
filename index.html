@@ -171,7 +171,6 @@
       <button id="con-dotted" onclick="setConnect('dotted')" title="Dotted connector — click two nodes" style="font-size:15px">┄</button>
       <button id="tool-text" onclick="setTextMode()" title="Add text box — then click on the canvas" style="font-weight:700">T</button>
       <button onclick="addGroup()" title="Add group / region container" style="font-size:15px">▢</button>
-      <button id="tool-grid" onclick="toggleSnap()" title="Snap to grid" style="font-size:15px">▦</button>
     </div>
     <div class="canvas">
       <div id="stage">
@@ -647,6 +646,23 @@ function render(){
           +`<circle cx="${cx}" cy="${cyc}" r="7" fill="${col}" stroke="#fff" stroke-width="1.5"/></g>`; });
     }
   });
+  // free-floating lines (draw anywhere)
+  (model.lines||[]).forEach(l=>{ const sel=selectedLine===l.id, col=l.color||"#374151", dash=l.style==="dotted"?' stroke-dasharray="2 6"':'', mx=(l.x1+l.x2)/2, my=(l.y1+l.y2)/2;
+    s+=`<g class="freeline" data-lid="${l.id}" style="cursor:pointer">`;
+    if(sel) s+=`<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#2563eb" stroke-width="7" opacity="0.30"/>`;
+    s+=`<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="transparent" stroke-width="14"/>`
+      +`<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${col}" stroke-width="2"${dash} stroke-linecap="round"/>`;
+    if(l.label) s+=linkPill({x:l.x1,y:l.y1},{x:l.x2,y:l.y2},col,l.label);
+    s+=`</g>`;
+    if(sel){ const by=my-20;
+      linkBadges+=`<g class="line-edit-badge" data-lid="${l.id}" style="cursor:pointer"><title>Edit label</title><circle cx="${mx-22}" cy="${by}" r="9" fill="#2563eb" stroke="#fff" stroke-width="1.5"/><text x="${mx-22}" y="${by+3.6}" text-anchor="middle" font-size="11" fill="#fff">✎</text></g>`;
+      linkBadges+=`<g class="line-del-badge" data-lid="${l.id}" style="cursor:pointer"><title>Delete line</title><circle cx="${mx}" cy="${by}" r="9" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><line x1="${mx-3.4}" y1="${by-3.4}" x2="${mx+3.4}" y2="${by+3.4}" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><line x1="${mx-3.4}" y1="${by+3.4}" x2="${mx+3.4}" y2="${by-3.4}" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></g>`;
+      const cyc=my-42, sxc=mx-(LINK_COLORS.length-1)*11;
+      LINK_COLORS.forEach((col2,i)=>{ linkBadges+=`<g class="line-color" data-lid="${l.id}" data-color="${col2}" style="cursor:pointer"><circle cx="${sxc+i*22}" cy="${cyc}" r="7" fill="${col2}" stroke="#fff" stroke-width="1.5"/></g>`; });
+      linkBadges+=`<g class="line-handle" data-lid="${l.id}" data-end="1" style="cursor:move"><circle cx="${l.x1}" cy="${l.y1}" r="6" fill="#fff" stroke="#2563eb" stroke-width="2"/></g>`
+        +`<g class="line-handle" data-lid="${l.id}" data-end="2" style="cursor:move"><circle cx="${l.x2}" cy="${l.y2}" r="6" fill="#fff" stroke="#2563eb" stroke-width="2"/></g>`;
+    }
+  });
   model.subnets.forEach(su=>{ const a=pos[su.anchor],p=pos[su.id]; if(a&&p){ const y2=p.y+(p.y<a.y?18:-18);
     s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${y2}" stroke="${su.color||'var(--direct)'}" stroke-width="2"/>`; } });
   model.clouds.forEach(c=>{ const a=pos[c.anchor],p=pos[c.id]; if(a&&p) s+=`<line x1="${a.x}" y1="${a.y}" x2="${p.x}" y2="${p.y+(p.y<a.y?26:-26)}" stroke="var(--cloud-b)" stroke-width="2"/>`; });
@@ -705,6 +721,8 @@ function render(){
       +`<text x="${p.x}" y="${p.y+sz*0.35}" text-anchor="middle" font-size="${sz}" font-weight="600" fill="#111827">${esc(txt)}</text>`); });
   if(connectMode && connectFrom && pos[connectFrom]){ const p=pos[connectFrom];   // pending connector source
     s+=`<circle cx="${p.x}" cy="${p.y}" r="46" fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="5 4"/>`; }
+  if(lineDraw){ const dash=lineDraw.style==="dotted"?' stroke-dasharray="2 6"':'';   // free-line preview
+    s+=`<line x1="${lineDraw.x1}" y1="${lineDraw.y1}" x2="${lineDraw.x2}" y2="${lineDraw.y2}" stroke="#374151" stroke-width="2"${dash} stroke-linecap="round"/>`; }
   s+=selBadges+linkBadges;                                  // delete badges above everything
   // bounds -> viewBox (allows negative coords for clouds above planes)
   let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
@@ -713,6 +731,7 @@ function render(){
     const hh=p.ptype==="plane"?p.mH/2:p.ptype==="group"?p.h/2:p.ptype==="cloud"?32:(p.kind==="cluster"?52:p.kind?66:30);
     minX=Math.min(minX,p.x-hw); maxX=Math.max(maxX,p.x+hw);
     minY=Math.min(minY,p.y-hh); maxY=Math.max(maxY,p.y+hh); });
+  (model.lines||[]).forEach(l=>{ minX=Math.min(minX,l.x1,l.x2); maxX=Math.max(maxX,l.x1,l.x2); minY=Math.min(minY,l.y1,l.y2); maxY=Math.max(maxY,l.y1,l.y2); });
   if(!isFinite(minX)){ minX=0;minY=0;maxX=560;maxY=360; }
   minX-=30; minY-=30; maxX+=30; maxY+=40;
   lastBounds={minX,minY,W:maxX-minX,H:maxY-minY};          // tight content bounds (for Fit)
@@ -721,7 +740,7 @@ function render(){
   else { world.minX=Math.min(world.minX,minX); world.minY=Math.min(world.minY,minY);
          world.maxX=Math.max(world.maxX,maxX); world.maxY=Math.max(world.maxY,maxY); }
   const vX=world.minX, vY=world.minY, W=world.maxX-world.minX, H=world.maxY-world.minY;
-  const hasContent = model.devices.length || model.subnets.length || model.clouds.length || (model.mgmt.services||[]).length || model.mgmt.planes.length || (model.texts||[]).length || (model.groups||[]).length;
+  const hasContent = model.devices.length || model.subnets.length || model.clouds.length || (model.mgmt.services||[]).length || model.mgmt.planes.length || (model.texts||[]).length || (model.groups||[]).length || (model.lines||[]).length;
   if(!hasContent)
     s+=`<text x="${vX+W/2}" y="${vY+H/2-10}" text-anchor="middle" font-size="16" fill="#9ca3af">Blank canvas</text>`
       +`<text x="${vX+W/2}" y="${vY+H/2+14}" text-anchor="middle" font-size="12" fill="#c0c4cc">Add a device from the left panel to begin</text>`;
@@ -788,6 +807,7 @@ let panning=null, spaceDown=false;   // Space/middle-drag to pan the canvas
 let resizing=null;                   // active node resize
 let lastTap=null;                    // manual double-click detection (DOM is rebuilt each click)
 let connectMode=null, connectFrom=null;   // manual connector tool (solid/dotted)
+let lineDraw=null, selectedLine=null, lineHandleDrag=null;   // free-floating lines
 let textMode=false;                        // click-to-place text box tool
 let snapGrid=false, dragGuides=null;       // snap-to-grid + alignment guides
 const GRID=20, SNAP=6;
@@ -825,19 +845,32 @@ function bindDrag(svg){
     if(lcol){ e.preventDefault(); e.stopPropagation(); pushUndo(); const l=model.links.find(x=>x.id===lcol.dataset.lid); if(l){ l.color=lcol.dataset.color; render(); } return; }
     const ncol=e.target.closest(".node-color");
     if(ncol){ e.preventDefault(); e.stopPropagation(); pushUndo(); const en=entity(ncol.dataset.id); if(en){ en.color=ncol.dataset.color; render(); } return; }
+    const lncol=e.target.closest(".line-color");
+    if(lncol){ e.preventDefault(); e.stopPropagation(); pushUndo(); const l=(model.lines||[]).find(x=>x.id===lncol.dataset.lid); if(l){ l.color=lncol.dataset.color; render(); } return; }
+    const ldb=e.target.closest(".line-del-badge");
+    if(ldb){ e.preventDefault(); e.stopPropagation(); pushUndo(); model.lines=(model.lines||[]).filter(x=>x.id!==ldb.dataset.lid); selectedLine=null; render(); return; }
+    const leb=e.target.closest(".line-edit-badge");
+    if(leb){ e.preventDefault(); e.stopPropagation(); editFreeLine(leb.dataset.lid); return; }
+    const lh=e.target.closest(".line-handle");
+    if(lh){ e.preventDefault(); e.stopPropagation(); lineHandleDrag={lid:lh.dataset.lid,end:lh.dataset.end}; return; }
     if(textMode){                                          // text tool: click to place
       e.preventDefault(); const loc=svgPoint(svg,e); textMode=false;
       const b=document.getElementById("tool-text"); if(b) b.classList.remove("act");
       const c=document.querySelector(".canvas"); if(c) c.style.cursor="";
       placeTextAt(loc,e.clientX,e.clientY); return; }
-    if(connectMode){                                       // connector tool: click two nodes
+    if(connectMode){                                       // connector tool: click nodes to connect, or drag on empty to draw a line
       e.preventDefault(); const gc=e.target.closest(".node");
       if(gc && (dev(gc.dataset.id)||gc.dataset.id.startsWith("svc:"))){ const id=gc.dataset.id;
         if(!connectFrom) connectFrom=id;
         else if(id!==connectFrom){ pushUndo(); model.links.push({id:uid("l"),from:connectFrom,to:id,style:connectMode.style,transport:"direct"}); connectFrom=null; }
         render();
-      } else { connectMode=null; connectFrom=null; setConnectButtons(); render(); }
+      } else if(connectFrom){ connectFrom=null; render(); }   // clicking empty while waiting cancels the pending node link
+      else { const loc=svgPoint(svg,e); lineDraw={style:connectMode.style,x1:loc.x,y1:loc.y,x2:loc.x,y2:loc.y}; }   // start a free line
       return; }
+    const flg=e.target.closest(".freeline");
+    if(flg){ e.preventDefault(); const lid=flg.dataset.lid, now=Date.now();
+      if(lastTap && lastTap.id==="line:"+lid && now-lastTap.t<350){ lastTap=null; editFreeLine(lid); return; }   // double-click = edit label
+      lastTap={id:"line:"+lid,t:now}; selectedLine=lid; selected=new Set(); selectedLink=null; render(); return; }
     const lebadge=e.target.closest(".link-edit-badge");
     if(lebadge){ e.preventDefault(); e.stopPropagation(); editLink(lebadge.dataset.lid); return; }
     const lbadge=e.target.closest(".link-del-badge");
@@ -848,7 +881,7 @@ function bindDrag(svg){
     if(badge){ e.preventDefault(); e.stopPropagation(); deleteSelectedEntity(badge.dataset.id); return; }
     const g=e.target.closest(".node");
     if(g){
-      selectedLink=null;
+      selectedLink=null; selectedLine=null;
       const id=g.dataset.id, now=Date.now();
       if(lastTap && lastTap.id===id && now-lastTap.t<350){ lastTap=null; e.preventDefault(); editNodeInline(id); return; }   // double-click = edit
       lastTap={id,t:now};
@@ -864,13 +897,16 @@ function bindDrag(svg){
       const lg=e.target.closest(".link");
       if(lg){ e.preventDefault(); const lid=lg.dataset.lid, now=Date.now();
         if(lastTap && lastTap.id==="link:"+lid && now-lastTap.t<350){ lastTap=null; editLink(lid); return; }   // double-click = edit label
-        lastTap={id:"link:"+lid,t:now}; selectedLink=lid; selected=new Set(); render(); return; }
+        lastTap={id:"link:"+lid,t:now}; selectedLink=lid; selectedLine=null; selected=new Set(); render(); return; }
       if(!penColor) startMarquee(e);                       // empty canvas -> rubber-band
     }
   });
   if(winBound) return; winBound=true;
   window.addEventListener("pointermove",e=>{
     if(panning){ const c=document.querySelector(".canvas"); if(c){ c.scrollLeft=panning.sl-(e.clientX-panning.sx); c.scrollTop=panning.st-(e.clientY-panning.sy); } return; }
+    if(lineDraw){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e); lineDraw.x2=loc.x; lineDraw.y2=loc.y; scheduleRender(); return; }
+    if(lineHandleDrag){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e);
+      const l=(model.lines||[]).find(x=>x.id===lineHandleDrag.lid); if(l){ if(!lineHandleDrag.moved){lineHandleDrag.moved=true;pushUndo();} if(lineHandleDrag.end==="1"){l.x1=Math.round(loc.x);l.y1=Math.round(loc.y);} else {l.x2=Math.round(loc.x);l.y2=Math.round(loc.y);} scheduleRender(); } return; }
     if(resizing){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e);
       const en=entity(resizing.id); if(!en) return;
       if(!resizing.moved){resizing.moved=true; pushUndo();}
@@ -891,10 +927,12 @@ function bindDrag(svg){
       scheduleRender(); return; }
     if(marquee) updateMarquee(e);
   });
-  window.addEventListener("pointerup",()=>{ if(panning){ const c=document.querySelector(".canvas"); if(c) c.style.cursor=spaceDown?"grab":""; panning=null; } resizing=null; if(marquee) endMarquee(); drag=null; if(dragGuides){ dragGuides=null; render(); } });
+  window.addEventListener("pointerup",()=>{ if(panning){ const c=document.querySelector(".canvas"); if(c) c.style.cursor=spaceDown?"grab":""; panning=null; }
+    if(lineDraw){ const d=lineDraw; lineDraw=null; if(Math.hypot(d.x2-d.x1,d.y2-d.y1)>6){ pushUndo(); const id=uid("fl"); (model.lines=model.lines||[]).push({id,style:d.style,x1:Math.round(d.x1),y1:Math.round(d.y1),x2:Math.round(d.x2),y2:Math.round(d.y2),color:"#374151"}); selectedLine=id; } render(); }
+    lineHandleDrag=null; resizing=null; if(marquee) endMarquee(); drag=null; if(dragGuides){ dragGuides=null; render(); } });
 }
 function startMarquee(e){
-  selectedLink=null;
+  selectedLink=null; selectedLine=null;
   if(!e.shiftKey) selected=new Set();
   const canvas=document.querySelector('.canvas');
   const div=document.createElement('div'); div.className='marquee'; canvas.appendChild(div);
@@ -914,7 +952,7 @@ function updateMarquee(e){
   selected=sel; scheduleRender();
 }
 function endMarquee(){ if(!marquee) return; marquee.div.remove(); marquee=null; render(); }
-function clearSelection(){ if(selected.size||selectedLink){ selected=new Set(); selectedLink=null; render(); } }
+function clearSelection(){ if(selected.size||selectedLink||selectedLine){ selected=new Set(); selectedLink=null; selectedLine=null; render(); } }
 function editNodeInline(id){                              // inline edit of a node's label/text at the node
   const en=entity(id); if(!en) return;
   let get,set;
@@ -1289,6 +1327,15 @@ function addLink(){
   render();
 }
 function delLink(id){ pushUndo(); model.links=model.links.filter(l=>l.id!==id); if(selectedLink===id) selectedLink=null; render(); }
+function editFreeLine(id){ const l=(model.lines||[]).find(x=>x.id===id); if(!l) return;
+  const svg=document.getElementById("topo"); if(!svg) return;
+  const pt=svg.createSVGPoint(); pt.x=(l.x1+l.x2)/2; pt.y=(l.y1+l.y2)/2; const sp=pt.matrixTransform(svg.getScreenCTM());
+  const inp=document.createElement("input"); inp.type="text"; inp.value=l.label||""; inp.placeholder="label";
+  inp.style.cssText=`position:fixed;left:${sp.x-65}px;top:${sp.y-13}px;z-index:200;width:130px;font-size:12px;font-weight:600;text-align:center;padding:2px 6px;border:1px solid #2563eb;border-radius:5px;box-shadow:0 2px 8px rgba(0,0,0,.15)`;
+  document.body.appendChild(inp); inp.focus(); inp.select(); let done=false;
+  const fin=()=>{ if(done) return; done=true; pushUndo(); l.label=inp.value; inp.remove(); render(); };
+  inp.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter") fin(); else if(e.key==="Escape"){ done=true; inp.remove(); } });
+  inp.addEventListener("blur",fin); }
 function editLink(id){ const l=model.links.find(x=>x.id===id); if(!l) return;
   const geo=computeGeometry(), a=geo[l.from], b=geo[l.to], svg=document.getElementById("topo"); if(!a||!b||!svg) return;
   const pt=svg.createSVGPoint(); pt.x=(a.x+b.x)/2; pt.y=(a.y+b.y)/2; const sp=pt.matrixTransform(svg.getScreenCTM());
@@ -1638,6 +1685,7 @@ window.addEventListener("keydown",e=>{
   const t=e.target.tagName; if(t==="INPUT"||t==="SELECT"||t==="TEXTAREA") return;
   if(e.code==="Space"){ spaceDown=true; e.preventDefault(); const c=document.querySelector(".canvas"); if(c&&!panning) c.style.cursor="grab"; return; }
   if(e.key==="Delete"||e.key==="Backspace"){
+    if(selectedLine){ e.preventDefault(); pushUndo(); model.lines=(model.lines||[]).filter(x=>x.id!==selectedLine); selectedLine=null; render(); return; }
     if(selectedLink){ e.preventDefault(); delLink(selectedLink); return; }
     if(selected.size){ e.preventDefault(); pushUndo(); [...selected].forEach(id=>{
       if(id.startsWith("text:")){ model.texts=(model.texts||[]).filter(t=>"text:"+t.id!==id); }
