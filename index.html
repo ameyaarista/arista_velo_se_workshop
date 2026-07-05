@@ -207,6 +207,17 @@
 
     <div class="section" style="padding:10px 12px">
       <h2 style="margin:0 0 7px;display:flex;align-items:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        Velo OPS Case
+      </h2>
+      <div style="display:flex;gap:6px">
+        <input id="ops-id" placeholder="OPS id (number)" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')openOps()">
+        <button class="btn sec" style="flex:0 0 34px;width:34px;padding:0" onclick="openOps()" title="Open VELOPS ticket"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      </div>
+    </div>
+
+    <div class="section" style="padding:10px 12px">
+      <h2 style="margin:0 0 7px;display:flex;align-items:center;gap:6px">
         <svg width="14" height="14" viewBox="0 0 87.3 78"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.6C.4 50 0 51.55 0 53.1h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L87.3 53.1c0-1.55-.4-3.1-1.2-4.5L59.85 53.1z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53.1H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5L60.75 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25l16.2 28.1H87.3c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
         GDrive Search
       </h2>
@@ -331,7 +342,7 @@ function computeGeometry(){
   // adjacency for barycenter ordering
   const nbr={}; model.links.forEach(l=>{ (nbr[l.from]=nbr[l.from]||[]).push(l.to); (nbr[l.to]=nbr[l.to]||[]).push(l.from); });
   // compact Y: only occupied tiers get a row, so empty layers leave no gap (lower layer index = lower on screen)
-  const occupied=Object.keys(layers).map(Number).sort((a,b)=>a-b), GAP=160, BASE=820, yFor={};
+  const occupied=Object.keys(layers).map(Number).sort((a,b)=>a-b), GAP=210, BASE=820, yFor={};
   occupied.forEach((L,i)=>{ yFor[L]=BASE-i*GAP; });
   const placeLayer=L=>{ const arr=layers[L]; if(!arr||!arr.length) return;
     arr.forEach(nd=>{ let sum=0,c=0; (nbr[nd.id]||[]).forEach(o=>{ if(posX[o]!=null){sum+=posX[o];c++;} }); nd._b=c?sum/c:LCX; });
@@ -429,15 +440,15 @@ function edgeIcon(cx,cy,r,fill){
   return g;
 }
 // VeloCloud Gateway (VCG): blue disc, white cloud + double-arrow ring
-function vcgIcon(cx,cy,r){
-  const sw=Math.max(1.2,r*0.09).toFixed(2), f=n=>n.toFixed(1);
-  let g=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#2b9fd8"/>`;
+function vcgIcon(cx,cy,r,fill){
+  const sw=Math.max(1.2,r*0.09).toFixed(2), f=n=>n.toFixed(1), col=fill||"#2b9fd8";
+  let g=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}"/>`;
   g+=`<rect x="${f(cx-0.34*r)}" y="${f(cy-0.34*r)}" width="${f(0.68*r)}" height="${f(0.2*r)}" fill="#fff"/>`;
   g+=`<circle cx="${f(cx-0.2*r)}" cy="${f(cy-0.34*r)}" r="${f(0.17*r)}" fill="#fff"/>`;
   g+=`<circle cx="${f(cx+0.04*r)}" cy="${f(cy-0.44*r)}" r="${f(0.22*r)}" fill="#fff"/>`;
   g+=`<circle cx="${f(cx+0.26*r)}" cy="${f(cy-0.34*r)}" r="${f(0.16*r)}" fill="#fff"/>`;
   const ay=cy+0.28*r;
-  g+=`<circle cx="${cx}" cy="${f(ay)}" r="${f(0.34*r)}" fill="#2b9fd8" stroke="#fff" stroke-width="${sw}"/>`;
+  g+=`<circle cx="${cx}" cy="${f(ay)}" r="${f(0.34*r)}" fill="${col}" stroke="#fff" stroke-width="${sw}"/>`;
   g+=`<line x1="${f(cx-0.2*r)}" y1="${f(ay)}" x2="${f(cx+0.2*r)}" y2="${f(ay)}" stroke="#fff" stroke-width="${sw}" stroke-linecap="round"/>`;
   g+=`<polyline points="${f(cx-0.12*r)},${f(ay-0.1*r)} ${f(cx-0.22*r)},${f(ay)} ${f(cx-0.12*r)},${f(ay+0.1*r)}" fill="none" stroke="#fff" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
   g+=`<polyline points="${f(cx+0.12*r)},${f(ay-0.1*r)} ${f(cx+0.22*r)},${f(ay)} ${f(cx+0.12*r)},${f(ay+0.1*r)}" fill="none" stroke="#fff" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -720,7 +731,7 @@ function render(){
       selBadges+=`<g class="resize-handle" data-id="${id}" style="cursor:nwse-resize"><title>Drag to resize</title>`
         +`<rect x="${p.x+hw-6}" y="${p.y+hh-6}" width="12" height="12" rx="2" fill="#2563eb" stroke="#fff" stroke-width="1.5"/></g>`;
     }
-    if(single && (p.kind==="hub"||p.kind==="spoke"||p.kind==="cluster"||p.ptype==="subnet"||p.ptype==="group")){   // recolor device / subnet / group
+    if(single && (p.kind==="hub"||p.kind==="spoke"||p.kind==="cluster"||p.ptype==="subnet"||p.ptype==="group"||(p.ptype==="svc"&&p.svc&&p.svc.type==="vcg"))){   // recolor device / subnet / group / gateway
       const cols=[["Green","#57bf5b"],["Blue","#2b9fd8"],["Gray","#9aa0a6"]], cyc=p.y+hh+16, sxx=p.x-(cols.length-1)*12;
       cols.forEach(([nm,col],i)=>{ const cx=sxx+i*24;
         selBadges+=`<g class="node-color" data-id="${id}" data-color="${col}" style="cursor:pointer"><title>${nm}</title>`
@@ -740,7 +751,7 @@ function render(){
   // management service nodes (VCO/VCG) — standalone, each independently draggable
   (model.mgmt.services||[]).forEach(sv=>{ const S=pos["svc:"+sv.id]; if(!S) return; const x=S.x, sy=S.y, ir=24;
     let mg="";
-    if(sv.type==="vcg") mg+=vcgIcon(x,sy,ir);
+    if(sv.type==="vcg") mg+=vcgIcon(x,sy,ir,sv.color);
     else if(sv.type==="vco") mg+=vcoIcon(x,sy,ir);
     else { const b=ir*0.55; mg+=`<circle cx="${x}" cy="${sy}" r="${ir}" fill="#2f80c9"/>`
       +`<rect x="${x-b}" y="${sy-b}" width="${2*b}" height="${2*b}" rx="2" fill="none" stroke="#fff" stroke-width="1.8"/>`
@@ -1261,7 +1272,12 @@ function viewCenterWorld(){                                 // world coords at t
   return {x:Math.round(u.x), y:Math.round(u.y)};
 }
 let addSeq=0;
-function nextDropPos(){ const c=viewCenterWorld(), k=addSeq++; return {x:c.x+((k%4)*46-69), y:c.y+(Math.floor(k/4)%4)*46-46}; }
+function nextDropPos(){ const c=viewCenterWorld(), k=addSeq++; let x=c.x+((k%4)*46-69), y=c.y+(Math.floor(k/4)%4)*46-46;
+  const geo=computeGeometry();                              // nudge off any existing node so it never lands on top
+  for(let i=0;i<24;i++){ let hit=false;
+    Object.values(geo).forEach(p=>{ if(p&&p.x!=null&&Math.abs(p.x-x)<72&&Math.abs(p.y-y)<72){ x+=54; y+=34; hit=true; } });
+    if(!hit) break; }
+  return {x:Math.round(x),y:Math.round(y)}; }
 function addDevice(kind,cloud){
   pushUndo();
   const base=({hub:"Hub",cluster:"Cluster",firewall:"FW",vwan:"vWAN",internet:"Internet",mpls:"MPLS",router:"Router",switch:"Switch",fiveg:"5G",satellite:"SAT",zscaler:"Zscaler",prisma:"Prisma",netskope:"Netskope"})[kind]||"Spoke";
@@ -1297,6 +1313,8 @@ function openDrive(){ const el=document.getElementById("drive-q"), v=(el&&el.val
   window.open("https://drive.google.com/drive/search?q="+encodeURIComponent(v),"_blank","noopener"); }
 function openTac(){ const el=document.getElementById("tac-id"), v=(el&&el.value||"").trim(); if(!v) return;
   window.open("https://case-reader.aristanetworks.com/case/"+encodeURIComponent(v),"_blank","noopener"); }
+function openOps(){ const el=document.getElementById("ops-id"), v=(el&&el.value||"").trim().replace(/^VELOPS-/i,""); if(!v) return;
+  window.open("https://velocloud.atlassian.net/browse/VELOPS-"+encodeURIComponent(v),"_blank","noopener"); }
 function addGroup(){                                      // add a labeled group/region container
   pushUndo(); const c=viewCenterWorld();
   const g={id:uid("gr"),label:"Group",x:c.x,y:c.y,w:340,h:230,color:"#6b7280"};
