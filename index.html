@@ -492,10 +492,10 @@ function devLabel(node,cx,cy,opts){                          // draggable device
   opts=opts||{};
   const raw=node.label!=null?node.label:"";
   if(!raw) return "";
-  const dx=node.lblDx||0, dy=node.lblDy||0, fs=opts.fs||13, color=opts.color||"#7c3aed", w=raw.length*7.6+16;
+  const dx=node.lblDx||0, dy=node.lblDy||0, fs=opts.fs||13, color=opts.color||"#7c3aed", w=raw.length*(fs*0.62)+14;
   return `<g class="devlabel" data-id="${node.id}" style="cursor:move" transform="translate(${dx},${dy})">`
-    +(opts.bg!==false?`<rect x="${(cx-w/2).toFixed(1)}" y="${cy-13}" width="${w.toFixed(1)}" height="19" rx="3" fill="#fff"/>`:"")
-    +`<text x="${cx}" y="${cy+1}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${color}">${esc(raw)}</text></g>`;
+    +`<rect x="${(cx-w/2).toFixed(1)}" y="${cy-13}" width="${w.toFixed(1)}" height="19" fill="#000" opacity="0"/>`   // invisible grab/hit area
+    +`<text x="${cx}" y="${cy+1}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${color}" stroke="#fff" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke">${esc(raw)}</text></g>`;
 }
 function firewallNode(p){
   const r=32, ly=p.y+r+20;
