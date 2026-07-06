@@ -975,6 +975,10 @@ function bindDrag(svg){
       if(lg){ e.preventDefault(); const lid=lg.dataset.lid, now=Date.now();
         if(lastTap && lastTap.id==="link:"+lid && now-lastTap.t<350){ lastTap=null; editLink(lid); return; }   // double-click = edit label
         lastTap={id:"link:"+lid,t:now}; selectedLink=lid; selectedLine=null; selected=new Set(); render(); return; }
+      const nowE=Date.now();                               // double-click empty canvas -> drop a text box here
+      if(!penColor && !connectMode && !textMode && lastTap && lastTap.id==="canvas" && nowE-lastTap.t<350){
+        lastTap=null; e.preventDefault(); const loc=svgPoint(svg,e); placeTextAt(loc,e.clientX,e.clientY); return; }
+      lastTap={id:"canvas",t:nowE};
       if(!penColor) startMarquee(e);                       // empty canvas -> rubber-band
     }
   });
