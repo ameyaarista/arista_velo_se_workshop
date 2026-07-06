@@ -112,6 +112,7 @@
         <a href="#" onclick="applyTemplate('threesite');return false">3-Site (1 hub, 2 spokes)</a>
         <a href="#" onclick="applyTemplate('nsdvedge');return false">NSDvEdge</a>
         <a href="#" onclick="applyTemplate('nsdvgateway');return false">NSDvGateway</a>
+        <a href="#" onclick="applyTemplate('enhancedha');return false">EnhancedHA</a>
       </div>
     </div>
     <div class="dropdown">
@@ -487,11 +488,18 @@ function firewallIcon(cx,cy,r,fill){
   g+=`<path d="M ${f(fx)} ${f(fy-fr*0.2)} C ${f(fx+fr*0.4)} ${f(fy+fr*0.2)}, ${f(fx+fr*0.2)} ${f(fy+fr*0.6)}, ${f(fx)} ${f(fy+fr*0.6)} C ${f(fx-fr*0.3)} ${f(fy+fr*0.6)}, ${f(fx-fr*0.35)} ${f(fy+fr*0.2)}, ${f(fx)} ${f(fy-fr*0.2)} Z" fill="${fill}"/>`;
   return g;
 }
+function devLabel(node,cx,cy,opts){                          // draggable device-name label (blank names render nothing)
+  opts=opts||{};
+  const raw=node.label!=null?node.label:"";
+  if(!raw) return "";
+  const dx=node.lblDx||0, dy=node.lblDy||0, fs=opts.fs||13, color=opts.color||"#7c3aed", w=raw.length*7.6+12;
+  return `<g class="devlabel" data-id="${node.id}" style="cursor:move" transform="translate(${dx},${dy})">`
+    +(opts.bg!==false?`<rect x="${(cx-w/2).toFixed(1)}" y="${cy-12}" width="${w.toFixed(1)}" height="17" rx="3" fill="#fff" opacity="0.92"/>`:"")
+    +`<text x="${cx}" y="${cy+1}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${color}">${esc(raw)}</text></g>`;
+}
 function firewallNode(p){
-  const r=32, ly=p.y+r+20, lbl=esc(p.node.label), w=lbl.length*7.6+12;
-  return firewallIcon(p.x,p.y,r,'var(--firewall)')
-    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
-    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+  const r=32, ly=p.y+r+20;
+  return firewallIcon(p.x,p.y,r,'var(--firewall)')+devLabel(p.node,p.x,ly);
 }
 // Azure Virtual WAN: light-blue cloud + blue globe + pink connector dots
 function vwanIcon(cx,cy,r){
@@ -514,10 +522,8 @@ function vwanIcon(cx,cy,r){
   return g;
 }
 function vwanNode(p){
-  const r=32, ly=p.y+r+20, lbl=esc(p.node.label), w=lbl.length*7.6+12;
-  return vwanIcon(p.x,p.y,r)
-    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
-    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+  const r=32, ly=p.y+r+20;
+  return vwanIcon(p.x,p.y,r)+devLabel(p.node,p.x,ly);
 }
 // SASE / SSE brand marks (simplified)
 function zscalerIcon(cx,cy,r){ const f=n=>n.toFixed(1);
@@ -543,8 +549,8 @@ function cloudOutline(cx,cy,r,color){ const s=(2.7*r)/24, tx=(cx-12*s).toFixed(2
 function internetIcon(cx,cy,r){ return cloudOutline(cx,cy,r,"#0d6efd"); }
 function mplsIcon(cx,cy,r){ return cloudOutline(cx,cy,r,"#6b7280"); }
 function cloudLabelNode(p,iconFn,textFill){
-  const r=34, lbl=esc(p.node.label);
-  return iconFn(p.x,p.y,r)+`<text x="${p.x}" y="${p.y+4}" text-anchor="middle" font-size="12" font-weight="600" fill="${textFill}">${lbl}</text>`;
+  const r=34;
+  return iconFn(p.x,p.y,r)+devLabel(p.node,p.x,p.y+4,{color:textFill,fs:12,bg:false});
 }
 function internetNode(p){ return cloudLabelNode(p,internetIcon,"#1f6bb0"); }
 function mplsNode(p){ return cloudLabelNode(p,mplsIcon,"#374151"); }
@@ -576,26 +582,22 @@ function satelliteIcon(cx,cy,r){ const f=n=>n.toFixed(1), col="#111827";
   g+=`<line x1="${f(cx-0.18*r)}" y1="${f(cy+0.08*r)}" x2="${f(cx-0.05*r)}" y2="${f(cy+0.6*r)}" stroke="${col}" stroke-width="${f(r*0.09)}"/>`;
   g+=`<line x1="${f(cx-0.42*r)}" y1="${f(cy+0.64*r)}" x2="${f(cx+0.34*r)}" y2="${f(cy+0.64*r)}" stroke="${col}" stroke-width="${f(r*0.1)}" stroke-linecap="round"/>`;
   return g; }
-function simpleNode(p,iconFn,r){ r=r||30; const ly=p.y+r+18, lbl=esc(p.node.label), w=lbl.length*7.6+12;
-  return iconFn(p.x,p.y,r)
-    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
-    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`; }
+function simpleNode(p,iconFn,r){ r=r||30; const ly=p.y+r+18;
+  return iconFn(p.x,p.y,r)+devLabel(p.node,p.x,ly); }
 const SSEICON={zscaler:zscalerIcon,prisma:prismaIcon,netskope:netskopeIcon};
 function sseNode(p){
-  const r=30, ly=p.y+r+20, lbl=esc(p.node.label), w=lbl.length*7.6+12;
+  const r=30, ly=p.y+r+20;
   return `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="#fff" stroke="#d0d5dd" stroke-width="1.5"/>`
     +(SSEICON[p.kind]||zscalerIcon)(p.x,p.y,r*0.62)
-    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
-    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+    +devLabel(p.node,p.x,ly);
 }
 function clusterNode(p){
   const r=24, dx=32, padX=dx+r+12, padY=r+14;
-  const lbl=esc(p.node.label), w=lbl.length*7.6+12, ly=p.y+padY+16;
+  const ly=p.y+padY+16;
   const fill=p.node.color||"var(--hub)";
   let g=`<rect x="${p.x-padX}" y="${p.y-padY}" width="${2*padX}" height="${2*padY}" rx="12" fill="#fff" stroke="#9aa0a6" stroke-width="1.5" stroke-dasharray="4 3"/>`;
   g+=edgeIcon(p.x-dx,p.y,r,fill)+edgeIcon(p.x+dx,p.y,r,fill);
-  g+=`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
-    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+  g+=devLabel(p.node,p.x,ly);
   return g;
 }
 function deviceNode(p){
@@ -611,16 +613,13 @@ function deviceNode(p){
   if(isSSE(p.kind)) return sseNode(p);
   const isHub=p.kind==="hub", fill=p.node.color||(isHub?"var(--hub)":"var(--spoke)"), r=isHub?38:32;
   const ly=isHub?p.y-r-14:p.y+r+20;              // hub label above, spoke label below — clear of links
-  const lbl=esc(p.node.label), w=lbl.length*7.6+12;
   const prov=p.node.cloud;
   let cloudMark="";
   if(prov){ const pc={aws:"#ff9900",azure:"#0089D6",gcp:"#4285F4"}[prov]||"#9ca3af";
     cloudMark=`<circle cx="${p.x}" cy="${p.y}" r="${r+5}" fill="none" stroke="${pc}" stroke-width="2" stroke-dasharray="3 3"/>`
       +`<g transform="translate(${p.x+r*0.72},${p.y-r*0.72}) scale(0.5)"><circle r="24" fill="#fff" stroke="#d0d5dd"/>${providerMark(0,0,prov)}</g>`;
   }
-  return edgeIcon(p.x,p.y,r,fill)+cloudMark
-    +`<rect x="${p.x-w/2}" y="${ly-12}" width="${w}" height="17" rx="3" fill="#fff" opacity="0.92"/>`
-    +`<text x="${p.x}" y="${ly+1}" text-anchor="middle" font-size="13" font-weight="600" fill="#7c3aed">${lbl}</text>`;
+  return edgeIcon(p.x,p.y,r,fill)+cloudMark+devLabel(p.node,p.x,ly);
 }
 function subnetNode(p){
   const s=p.node, stroke=s.color||"var(--subnet-b)";
@@ -861,6 +860,7 @@ let resizing=null;                   // active node resize
 let lastTap=null;                    // manual double-click detection (DOM is rebuilt each click)
 let connectMode=null, connectFrom=null;   // manual connector tool (solid/dotted)
 let lineDraw=null, selectedLine=null, lineHandleDrag=null;   // free-floating lines
+let labelDrag=null;                        // dragging a device name label to reposition it
 let textMode=false;                        // click-to-place text box tool
 let snapGrid=false, dragGuides=null;       // snap-to-grid + alignment guides
 const GRID=20, SNAP=6;
@@ -906,6 +906,13 @@ function bindDrag(svg){
     if(leb){ e.preventDefault(); e.stopPropagation(); editFreeLine(leb.dataset.lid); return; }
     const lh=e.target.closest(".line-handle");
     if(lh){ e.preventDefault(); e.stopPropagation(); lineHandleDrag={lid:lh.dataset.lid,end:lh.dataset.end}; return; }
+    const dlab=e.target.closest(".devlabel");                 // drag a device's name label to move it along the device
+    if(dlab){ e.preventDefault(); e.stopPropagation(); const id=dlab.dataset.id, now=Date.now();
+      if(lastTap && lastTap.id==="lbl:"+id && now-lastTap.t<350){ lastTap=null; editNodeInline(id); return; }   // double-click = rename
+      lastTap={id:"lbl:"+id,t:now};
+      const d=dev(id), loc=svgPoint(svg,e);
+      if(d) labelDrag={id,wx:loc.x,wy:loc.y,dx0:d.lblDx||0,dy0:d.lblDy||0,moved:false};
+      return; }
     if(textMode){                                          // text tool: click to place
       e.preventDefault(); const loc=svgPoint(svg,e); textMode=false;
       const b=document.getElementById("tool-text"); if(b) b.classList.remove("act");
@@ -970,6 +977,9 @@ function bindDrag(svg){
     if(lineDraw){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e); lineDraw.x2=loc.x; lineDraw.y2=loc.y; scheduleRender(); return; }
     if(lineHandleDrag){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e);
       const l=(model.lines||[]).find(x=>x.id===lineHandleDrag.lid); if(l){ if(!lineHandleDrag.moved){lineHandleDrag.moved=true;pushUndo();} if(lineHandleDrag.end==="1"){l.x1=Math.round(loc.x);l.y1=Math.round(loc.y);} else {l.x2=Math.round(loc.x);l.y2=Math.round(loc.y);} scheduleRender(); } return; }
+    if(labelDrag){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e);
+      const d=dev(labelDrag.id); if(!d) return; if(!labelDrag.moved){labelDrag.moved=true;pushUndo();}
+      const k=d.scale||1; d.lblDx=Math.round(labelDrag.dx0+(loc.x-labelDrag.wx)/k); d.lblDy=Math.round(labelDrag.dy0+(loc.y-labelDrag.wy)/k); scheduleRender(); return; }
     if(resizing){ const svg=document.getElementById("topo"); if(!svg) return; const loc=svgPoint(svg,e);
       const en=entity(resizing.id); if(!en) return;
       if(!resizing.moved){resizing.moved=true; pushUndo();}
@@ -992,7 +1002,7 @@ function bindDrag(svg){
   });
   window.addEventListener("pointerup",()=>{ if(panning){ const c=document.querySelector(".canvas"); if(c) c.style.cursor=spaceDown?"grab":""; panning=null; }
     if(lineDraw){ const d=lineDraw; lineDraw=null; if(Math.hypot(d.x2-d.x1,d.y2-d.y1)>6){ pushUndo(); const id=uid("fl"); (model.lines=model.lines||[]).push({id,style:d.style,x1:Math.round(d.x1),y1:Math.round(d.y1),x2:Math.round(d.x2),y2:Math.round(d.y2),color:"#374151"}); selectedLine=id; } render(); }
-    lineHandleDrag=null; resizing=null; if(marquee) endMarquee(); drag=null; if(dragGuides){ dragGuides=null; render(); } });
+    lineHandleDrag=null; if(labelDrag){ const mv=labelDrag.moved; labelDrag=null; if(mv) render(); } resizing=null; if(marquee) endMarquee(); drag=null; if(dragGuides){ dragGuides=null; render(); } });
 }
 function startMarquee(e){
   selectedLink=null; selectedLine=null;
@@ -1021,7 +1031,8 @@ function editNodeInline(id){                              // inline edit of a no
   let get,set;
   if(id.startsWith("text:")){ get=()=>en.text; set=v=>en.text=v||"Text"; }
   else if(id.startsWith("group:")){ get=()=>en.label; set=v=>{ if(v) en.label=v; }; }
-  else if(id.startsWith("svc:")||dev(id)){ get=()=>en.label; set=v=>{ if(v) en.label=v; }; }
+  else if(dev(id)){ get=()=>en.label; set=v=>{ en.label=v; }; }   // devices may have a blank name
+  else if(id.startsWith("svc:")){ get=()=>en.label; set=v=>{ if(v) en.label=v; }; }
   else if(model.subnets.some(x=>x.id===id)||model.clouds.some(x=>x.id===id)){ get=()=>en.cidr; set=v=>{ if(v) en.cidr=v; }; }  // edit CIDR
   else { editSelectedEntity(id); return; }               // plane -> field editor
   const geo=computeGeometry(), p=geo[id], svg=document.getElementById("topo"); if(!p||!svg) return;
@@ -1120,7 +1131,7 @@ function runChecks(){
   model.devices.filter(d=>!linked.has(d.id)).forEach(d=>
     issues.push({sev:"warn",msg:`<b>${esc(d.label)}</b> is not connected to any node (orphan).`}));
   // duplicate device labels (case-insensitive)
-  const byLabel={}; model.devices.forEach(d=>{ const k=d.label.trim().toLowerCase(); (byLabel[k]=byLabel[k]||[]).push(d.label); });
+  const byLabel={}; model.devices.forEach(d=>{ const k=(d.label||"").trim().toLowerCase(); if(!k) return; (byLabel[k]=byLabel[k]||[]).push(d.label); });
   Object.values(byLabel).filter(a=>a.length>1).forEach(a=>
     issues.push({sev:"err",msg:`Duplicate device name <b>${esc(a[0])}</b> used ${a.length}×.`}));
   // CIDRs: gather subnets + clouds
@@ -1746,6 +1757,27 @@ const TEMPLATES={
       {id:"l4",from:gw,to:"zMEL",transport:"ipsec"},
     ];
     return {devices,links,subnets:[],clouds:[],mgmt:{planes:[],services:[{id:"gwSYD",label:"Sydney Gateway",ip:"",type:"vcg"}]}};
+  }},
+  enhancedha:{ label:"EnhancedHA", build(){
+    const devices=[
+      {id:"act",kind:"spoke",label:"Active",color:"#2b9fd8",x:200,y:630},
+      {id:"sby",kind:"spoke",label:"Standby",color:"#9aa0a6",x:760,y:630},
+      {id:"int1",kind:"internet",label:"Internet1",x:200,y:280},
+      {id:"sat1",kind:"satellite",label:"SAT1",x:760,y:280},
+      {id:"g5g1",kind:"fiveg",label:"5G1",x:1020,y:510},
+      {id:"sw1",kind:"switch",label:"Switch1",x:200,y:960},
+      {id:"sw2",kind:"switch",label:"Switch2",x:760,y:960},
+    ];
+    const links=[
+      {id:"e1",from:"int1",to:"act",transport:"sdwan"},     // Active WAN uplinks
+      {id:"e2",from:"sat1",to:"sby",transport:"sdwan"},     // Standby WAN uplinks
+      {id:"e3",from:"g5g1",to:"sby",transport:"sdwan"},
+      {id:"e4",from:"act",to:"sby",style:"dotted",label:"eHA",color:"#374151",transport:"direct"},   // Enhanced HA link
+      {id:"e5",from:"act",to:"sw1",transport:"sdwan"},      // LAN switches
+      {id:"e6",from:"sby",to:"sw2",transport:"sdwan"},
+      {id:"e7",from:"sw1",to:"sw2",transport:"sdwan"},
+    ];
+    return {devices,links,subnets:[],clouds:[],mgmt:{planes:[],services:[]}};
   }}
 };
 function applyTemplate(name){ const t=TEMPLATES[name]; if(!t) return;
