@@ -271,10 +271,10 @@
               <div><label>DNS secondary <span class="opt">(optional)</span></label><input type="text" id="g_e1dns2" spellcheck="false"></div>
             </div>
             <div class="row">
-              <div><label>Route metric</label><input type="number" id="g_e1metric" value="13" min="0" spellcheck="false"></div>
+              <div><label>Route metric</label><input type="number" id="g_e1metric" value="1" min="0" spellcheck="false"></div>
               <div></div>
             </div>
-            <div class="hint">Docs default 13 (backup route via handoff); set 1 to match eth0 if both routes should be equal.</div>
+            <div class="hint">Metric 1 matches eth0; set higher (e.g. 13) to make the handoff a backup route.</div>
           </div>
         </div>
 
@@ -534,7 +534,7 @@ function genGateway() {
 
   let nc = null;
   const e0 = gwIface('g_e0', 1, '    ');
-  const e1 = arm === 2 ? gwIface('g_e1', 13, '    ') : null;
+  const e1 = arm === 2 ? gwIface('g_e1', 1, '    ') : null;
   const e0static = val('g_e0mode') === 'static';
   const e1static = arm === 2 && val('g_e1mode') === 'static';
   if (e0static && !e0) warns.push('eth0: static mode needs an address in CIDR form (e.g. 203.0.113.10/24).');
