@@ -135,8 +135,6 @@
     display: block; background: #eef3f7; border-radius: 8px; padding: 10px 12px; margin-top: 8px;
     font-size: 12px; color: var(--text); overflow-x: auto; white-space: pre;
   }
-  footer { margin-top: 30px; color: var(--muted); font-size: 12px; line-height: 1.7; }
-  footer a { color: var(--blue-dark); }
   .toast {
     position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
     background: #10202c; color: #fff; padding: 9px 18px; border-radius: 20px; font-size: 13px;
@@ -365,14 +363,6 @@ cloud-init schema --schema-type network-config --config-file network-config</cod
     </div>
   </div>
 
-  <footer>
-    Built from the Arista / VeloCloud 6.4 deployment guides:
-    <a href="https://www.arista.com/en/admin-guide-vc-6-4/sd-wan-6-4-virtual-edge-deployment" target="_blank" rel="noopener">Virtual Edge</a> ·
-    <a href="https://www.arista.com/en/partner-guide-vc-6-4/sd-wan-6-4-install-partner-gateway" target="_blank" rel="noopener">Partner Gateway</a> ·
-    <a href="https://www.arista.com/en/orchestrator-guide-vc-6-4/sd-wan-6-4-velocloud-orchestrator-deployment-and-monitoring-guide" target="_blank" rel="noopener">Orchestrator</a><br>
-    The ISO is generated locally in your browser (ISO 9660 + Joliet, volume id <code>cidata</code>) — equivalent to
-    <code>genisoimage -volid cidata -joliet -rock …</code>. Attach it to the VM as a CD-ROM at first boot.
-  </footer>
 </div>
 
 <div class="toast" id="toast"></div>
